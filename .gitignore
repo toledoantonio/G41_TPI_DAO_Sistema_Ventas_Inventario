@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+dist/
+build/
+coverage/
+
+# Configuración local y credenciales
+.env
+.env.*
+!.env.example
+
+# Bases de datos locales y archivos generados
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
