@@ -27,8 +27,6 @@ backend/
 └── main.py                     Punto de entrada
 ```
 
-Los archivos `__init__.py` identifican los paquetes Python y `.gitkeep` permite conservar carpetas todavía vacías en Git.
-
 ## Alcance del enunciado
 
 - Administrar locales y Centro de Distribución.
@@ -44,10 +42,6 @@ Los archivos `__init__.py` identifican los paquetes Python y `.gitkeep` permite 
 - No vender por encima del stock disponible y verificado.
 - Evitar productos y proveedores duplicados según los identificadores definidos.
 - Validar que las devoluciones correspondan a ventas registradas y cumplan las reglas establecidas.
-
-Se deberán aplicar al menos **dos patrones de diseño** e implementar al menos **cuatro reportes no triviales**. Su selección y diseño quedan pendientes.
-
-Fuente principal: enunciado `TPI-tema3.pdf` proporcionado por el grupo. Este resumen orienta la estructura y no reemplaza la consigna original.
 
 ### Integrantes del grupo
 
