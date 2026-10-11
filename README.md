@@ -1,4 +1,6 @@
-# Sistema de Ventas e Inventario
+# G41 - TPI - Sistema de Ventas e Inventario
+
+Este README deja constancia del Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos** del **grupo 41**, correspondiente al año **2026**. La documentación se irá incorporando según las actividades propuestas por la cátedra, con los enlaces y las imágenes de los diagramas requeridos.
 
 Trabajo Práctico Integrador 2026 de Desarrollo de Aplicaciones con Objetos, Ingeniería en Sistemas de Información. Tema 3: Centro de Distribución a Locales.
 
@@ -46,3 +48,12 @@ Los archivos `__init__.py` identifican los paquetes Python y `.gitkeep` permite 
 Se deberán aplicar al menos **dos patrones de diseño** e implementar al menos **cuatro reportes no triviales**. Su selección y diseño quedan pendientes.
 
 Fuente principal: enunciado `TPI-tema3.pdf` proporcionado por el grupo. Este resumen orienta la estructura y no reemplaza la consigna original.
+
+### Integrantes del grupo
+
+| Legajo | Apellido y Nombre |
+| --- | --- |
+| 81864 | Toledo, Antonio |
+| 95433 | De la Vega, Ezequiel |
+| 402587 | Sutara, Facundo |
+| 408591 | Flores, Brian Benjamin |
