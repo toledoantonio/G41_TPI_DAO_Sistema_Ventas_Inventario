@@ -1,0 +1,79 @@
+classDiagram
+    class Aplicacion {
+        sistema
+        ejecutar(accion)
+        actualizar()
+    }
+    class Sistema {
+        db
+        registrar_compra(referencia, proveedor_id, cd_id, detalles)
+        crear_orden(cd_id, local_id, detalles)
+        preparar_bulto(orden_id, numero_remito, detalles)
+        verificar(bulto_id, local_id, precinto_observado, roto, observacion)
+        _operacion()
+    }
+    class BaseDatos {
+        ruta
+        conectar()
+        transaccion()
+    }
+    class Producto {
+        codigo
+        descripcion
+        categoria_id
+        precio_centavos
+        __post_init__()
+    }
+    class Bulto {
+        id
+        precinto
+        _estado
+        estado
+        precintar(valor)
+        despachar()
+        recibir()
+        verificar(precinto_observado, roto)
+    }
+    class ProductoDAO {
+        cx
+        guardar(producto, identificador)
+        obtener(identificador)
+    }
+    class BultoDAO {
+        cx
+        obtener(identificador)
+        contenido(identificador)
+        registrar_estado(bulto, anterior, fecha, observacion)
+    }
+    class CatalogoDAO {
+        cx
+        ubicacion(identificador, tipo)
+        guardar_ubicacion(cod, nombre, direccion, tipo, identificador)
+        configurar_minimo(ubicacion_id, producto_id, minimo)
+        mover(ubicacion_id, producto_id, causa, referencia, fecha)
+    }
+    class OperacionesDAO {
+        cx
+        crear_compra(referencia, proveedor_id, cd_id, fecha)
+        crear_orden(cd_id, local_id, fecha)
+        por_asignar(orden_id, producto_id)
+        crear_bulto_con_remito(orden_id, numero)
+        cambiar_estado_remito(identificador, estado)
+    }
+    class ConsultasDAO {
+        cx
+        listar(consulta)
+        detalle_orden(identificador)
+        historial_bulto(identificador)
+    }
+    Aplicacion --> Sistema : utiliza
+    Sistema --> BaseDatos : controla transaccion
+    Sistema ..> Producto : construye
+    Sistema ..> Bulto : coordina
+    Sistema ..> ProductoDAO
+    Sistema ..> BultoDAO
+    Sistema ..> CatalogoDAO
+    Sistema ..> OperacionesDAO
+    Sistema ..> ConsultasDAO
+    ProductoDAO ..> Producto : recibe
+    BultoDAO ..> Bulto : reconstruye

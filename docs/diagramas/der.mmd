@@ -1,0 +1,112 @@
+erDiagram
+    UBICACION {
+        int id PK
+        string codigo UK
+        string nombre
+        string direccion
+        string tipo
+    }
+    CATEGORIA {
+        int id PK
+        string nombre UK
+    }
+    PROVEEDOR {
+        int id PK
+        string codigo UK
+        string nombre
+    }
+    PRODUCTO {
+        int id PK
+        string codigo UK
+        string descripcion
+        int categoria_id FK
+        int precio_centavos
+    }
+    EXISTENCIA {
+        int ubicacion_id PK, FK
+        int producto_id PK, FK
+        int disponible
+        int reservado
+        int pendiente
+        int rechazado
+        int minimo
+    }
+    COMPRA {
+        int id PK
+        string referencia UK
+        int proveedor_id FK
+        int cd_id FK
+        string fecha
+    }
+    DETALLE_COMPRA {
+        int compra_id PK, FK
+        int producto_id PK, FK
+        int cantidad
+        int costo_centavos
+    }
+    ORDEN_REPOSICION {
+        int id PK
+        int cd_id FK
+        int local_id FK
+        string fecha
+    }
+    DETALLE_REPOSICION {
+        int orden_id PK, FK
+        int producto_id PK, FK
+        int cantidad
+    }
+    REMITO {
+        int id PK
+        string numero UK
+        int orden_id FK
+        string estado
+    }
+    BULTO {
+        int id PK
+        int remito_id FK, UK
+        string precinto UK
+        string estado
+    }
+    CONTENIDO_BULTO {
+        int bulto_id PK, FK
+        int producto_id PK, FK
+        int cantidad
+    }
+    HISTORIAL_BULTO {
+        int id PK
+        int bulto_id FK
+        string anterior
+        string nuevo
+        string fecha
+        string observacion
+    }
+    MOVIMIENTO_INVENTARIO {
+        int id PK
+        int ubicacion_id FK
+        int producto_id FK
+        int disponible
+        int reservado
+        int pendiente
+        int rechazado
+        string causa
+        int referencia_id
+        string fecha
+    }
+    CATEGORIA ||--o{ PRODUCTO : clasifica
+    UBICACION ||--o{ EXISTENCIA : mantiene
+    PRODUCTO ||--o{ EXISTENCIA : tiene
+    PROVEEDOR ||--o{ COMPRA : suministra
+    UBICACION ||--o{ COMPRA : recibe_en_CD
+    COMPRA ||--|{ DETALLE_COMPRA : contiene
+    PRODUCTO ||--o{ DETALLE_COMPRA : comprado
+    UBICACION ||--o{ ORDEN_REPOSICION : abastece_desde_CD
+    UBICACION ||--o{ ORDEN_REPOSICION : solicita_para_local
+    ORDEN_REPOSICION ||--|{ DETALLE_REPOSICION : contiene
+    PRODUCTO ||--o{ DETALLE_REPOSICION : solicitado
+    ORDEN_REPOSICION ||--o{ REMITO : atendida_por
+    REMITO ||--|| BULTO : documenta
+    BULTO ||--|{ CONTENIDO_BULTO : contiene
+    PRODUCTO ||--o{ CONTENIDO_BULTO : transportado
+    BULTO ||--|{ HISTORIAL_BULTO : registra
+    UBICACION ||--o{ MOVIMIENTO_INVENTARIO : afectada
+    PRODUCTO ||--o{ MOVIMIENTO_INVENTARIO : afectado

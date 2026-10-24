@@ -1,0 +1,37 @@
+classDiagram
+    class Bulto {
+        _estado
+        precintar(valor)
+        despachar()
+        recibir()
+        verificar(precinto_observado, roto)
+    }
+    class EstadoBulto {
+        nombre
+        precintar()
+        despachar()
+        recibir()
+        verificar(roto)
+        _rechazar(accion)
+    }
+    class Preparado {
+        precintar()
+    }
+    class Precintado {
+        despachar()
+    }
+    class EnTransito {
+        recibir()
+    }
+    class Recibido {
+        verificar(roto)
+    }
+    class Verificado
+    class Rechazado
+    Bulto "1" --> "1" EstadoBulto : delega acciones
+    EstadoBulto <|-- Preparado
+    EstadoBulto <|-- Precintado
+    EstadoBulto <|-- EnTransito
+    EstadoBulto <|-- Recibido
+    EstadoBulto <|-- Verificado
+    EstadoBulto <|-- Rechazado
