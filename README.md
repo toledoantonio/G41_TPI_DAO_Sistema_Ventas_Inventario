@@ -19,17 +19,18 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 
 - Alta y modificación de locales, Centro de Distribución, categorías, productos, precios y proveedores.
 - Mínimos por producto y ubicación, con consulta de faltantes incluso cuando el saldo es cero.
-- Compras recibidas en el CD con varios productos y costos históricos.
+- Compras recibidas en el CD con varios productos, costos históricos y cálculo de **costo promedio ponderado**.
 - Órdenes de reposición por local, con productos consolidados y atención parcial.
-- Preparación de bultos con reserva de stock, un remito por bulto y precinto único.
-- Despacho, recepción, verificación o rechazo, con historial inmutable y patrón State.
-- Inventario por ubicación con Disponible, Reservado, Pendiente y Rechazado; persistencia SQLite 3 y operaciones atómicas.
+- Preparación de bultos con reserva de stock, captura de costo de transferencia, un remito por bulto y precinto único.
+- Despacho, recepción, verificación o rechazo, con historial inmutable, transferencia de costo promedio al local y patrón **State**.
+- **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
+- Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
 
-La interfaz utiliza Tkinter/ttk. Ventas, cobros, comprobantes, devoluciones y los reportes restantes todavía no están implementados.
+La interfaz utiliza Tkinter/ttk. Las devoluciones comerciales y los reportes restantes se abordarán en los siguientes incrementos.
 
 ## Ejecución
 
-Requiere Python 3.11 o superior con Tkinter y SQLite 3 (incluidos en la instalación habitual de Python para Windows). No requiere paquetes de pip. Ejecutar desde la raíz del repositorio:
+Requiere Python 3.10 o superior con Tkinter y SQLite 3 (incluidos en la instalación habitual de Python para Windows). Ejecutar desde la raíz del repositorio:
 
 ```powershell
 python -m backend.main
@@ -41,49 +42,32 @@ Los datos se guardan en `data/inventario.sqlite3`. Para utilizar datos ficticios
 python -m backend.main --demo
 ```
 
-La primera apertura de una base de demostración vacía carga un CD, un local, un producto, una compra de 20 unidades y un bulto precintado de 10. Las siguientes aperturas conservan las operaciones realizadas. Se puede elegir otro archivo con `--db ruta/al/archivo.sqlite3`.
-
 En Windows se puede abrir **iniciar.cmd** con doble clic para usar la base normal, o **demo.cmd** para usar la demostración. Desde PowerShell:
 
 ```powershell
 .\iniciar.cmd --demo
 ```
 
-El iniciador CMD utiliza un runtime local disponible o Python instalado y admite los argumentos `--demo`, `--db` y `--help`. No ejecuta scripts de PowerShell ni modifica su política de ejecución. Si aparece el mensaje «la ejecución de scripts está deshabilitada», se estaba intentando abrir `iniciar.ps1`; utilizar `iniciar.cmd` o `demo.cmd`.
-
-Para probar el flujo, en **Bultos y remitos** seleccionar el bulto, despacharlo y recibirlo en Local Centro. Registrar recepción mantiene 10 unidades pendientes y cero disponibles en el local. Introducir `PRECINTO-DEMO-01` y verificar: bulto y remito quedan Verificados y las 10 pasan a Disponible. Si se marca precinto roto y se indica un motivo, quedan Rechazadas.
+Para probar el flujo completo:
+1. En **4. Bultos y remitos** seleccionar el bulto, despacharlo y recibirlo en Local Centro (mantiene 10 unidades pendientes y cero disponibles).
+2. Introducir `PRECINTO-DEMO-01` y verificar: bulto y remito quedan Verificados y las 10 unidades pasan a Disponible en el local con su costo promedio transferido.
+3. En **6. Ventas y caja** seleccionar Local Centro, agregar productos, registrar el cobro (o usar *Saldar resto con medio seleccionado*) y confirmar la venta para emitir el comprobante interno y actualizar stock y caja.
 
 ## Verificación
 
 ```powershell
-python -m unittest discover -v
+python -m pytest -v
 ```
 
-Las pruebas usan bases temporales y verifican persistencia, historial, estados, rechazo, duplicados, sobreasignación, transacciones, concurrencia y formularios de interfaz. Las pruebas de interfaz requieren Tk disponible.
+Las pruebas están escritas con `pytest` (Cap. 12) usando bases temporales y verifican modelos de dominio (encapsulamiento, composición, herencia, clases abstractas `ABC` y patrón `Singleton`), persistencia, costos promedio ponderados, ventas, cobros, comprobantes, historial, estados, rechazo, duplicados, sobreasignación, transacciones, concurrencia y formularios de interfaz.
 
 ## Patrones de diseño
 
-**State:** Bulto delega sus acciones en EstadoBulto y sus seis estados concretos. Cada estado determina la transición válida o rechaza la operación.
+- **State (Cap. 16.2):** `Bulto` delega sus acciones en `EstadoBulto(ABC)` y sus seis estados concretos. Cada estado determina la transición válida e invoca `contexto.cambiar_estado(...)` o rechaza la operación.
+- **Singleton (Cap. 15.3):** `BaseDatos` garantiza una única instancia del gestor de conexiones y transacciones SQLite mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()`.
+- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
 
-**DAO:** ProductoDAO, BultoDAO, CatalogoDAO, OperacionesDAO y ConsultasDAO concentran el acceso a SQLite. Los servicios comparten una transacción entre los DAOs participantes.
-
-Son los dos patrones aplicados; DAO es un patrón de acceso a datos, no un patrón GoF. Todavía no hay un tercer patrón incorporado. La [justificación técnica](docs/patrones.md) identifica participantes, archivos y pruebas.
-
-## Alcance del enunciado
-
-- Administrar locales y Centro de Distribución.
-- Administrar productos, categorías, precios, mínimos de existencia y proveedores.
-- Consolidar necesidades de locales en órdenes de reposición con origen y destino.
-- Preparar bultos con remito y precinto, registrar su despacho y recibirlos verificando el precinto.
-- Registrar ventas, cobros, comprobantes y devoluciones con impacto en stock y caja.
-
-### Reglas principales
-
-- El stock del destino solo queda disponible cuando el remito y el contenedor están verificados. Un precinto roto implica rechazo y no habilita la venta.
-- Mantener trazabilidad inmutable de los estados del bulto: Preparado, Precintado, En tránsito, Recibido y Verificado/Rechazado.
-- No vender por encima del stock disponible y verificado.
-- Evitar productos y proveedores duplicados según los identificadores definidos.
-- Validar que las devoluciones correspondan a ventas registradas y cumplan las reglas establecidas.
+La [justificación técnica](docs/patrones.md) identifica participantes, archivos y pruebas.
 
 ### Integrantes del grupo
 

@@ -1,50 +1,49 @@
 # Patrones aplicados
 
-Revisión contra el código del 22/10/2026. Hay dos patrones aplicados: State y DAO. El objetivo del grupo de aproximadamente tres patrones continúa vigente; el tercero no fue seleccionado ni implementado.
+Revisión contra el código del 27/10/2026. Se encuentran aplicados **tres patrones**: **State** (GoF), **Singleton** (GoF) y **DAO** (acceso a datos). Con ello se cumple holgadamente el requisito obligatorio de aplicar al menos dos patrones de diseño y el objetivo de tres patrones planteado por el grupo.
 
-Material complementario revisado el 23/10/2026: [referencias de cátedra](referencias_catedra.md). La guía docente de State pasa el contexto al estado; el TPI devuelve el siguiente objeto al contexto. La comparación y su fundamento están documentados allí. Observer queda como candidato a evaluar para vistas independientes; todavía no se declara implementado.
+Material complementario revisado: [referencias de cátedra](referencias_catedra.md). Tanto la clase abstracta `EstadoBulto(ABC)` y la transición mediante `contexto.cambiar_estado(...)` (Cap. 11.2 y Cap. 16.2) como la implementación de `BaseDatos` mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()` (Cap. 15.3 y Cap. 15.5.2) siguen la estructura de las guías docentes.
 
-## State: ciclo de vida del bulto
+## 1. State: ciclo de vida del bulto (Cap. 16.2)
 
 **Problema:** no todas las acciones son válidas en cualquier estado. No se puede despachar un bulto Preparado, recibirlo dos veces ni habilitar mercadería rechazada.
 
 | Participante | Implementación | Responsabilidad |
 | --- | --- | --- |
-| Contexto | `Bulto` en [entidades.py](../backend/models/entidades.py) | Conserva identidad, precinto y objeto de estado; delega acciones en ese objeto. |
-| Contrato común | `EstadoBulto` en [estados_bulto.py](../backend/patterns/estados_bulto.py) | Expone precintar, despachar, recibir y verificar. Rechaza por defecto acciones incompatibles. Es una clase base Python, no una interfaz abstracta formal. |
-| Estados concretos | Preparado, Precintado, EnTransito, Recibido, Verificado y Rechazado | Cada estado habilita su operación y devuelve el siguiente objeto de estado permitido. |
-| Reconstrucción | `recuperar_estado()` | Traduce el nombre persistido al objeto de estado. El mapa no se contabiliza como otro patrón. |
+| Contexto | `Bulto` en [entidades.py](../backend/models/entidades.py) | Conserva identidad, precinto, contenido y estado actual; expone `cambiar_estado()` y delega las acciones pasando `self` al estado. |
+| Contrato común | `EstadoBulto(ABC)` en [estados_bulto.py](../backend/patterns/estados_bulto.py) | Clase base abstracta (`ABC` con `@abstractmethod`) que expone `precintar`, `despachar`, `recibir` y `verificar`, rechazando por defecto acciones incompatibles. |
+| Estados concretos | `Preparado`, `Precintado`, `EnTransito`, `Recibido`, `Verificado` y `Rechazado` | Cada estado habilita su operación e invoca `contexto.cambiar_estado(...)` con el siguiente estado permitido. |
+| Reconstrucción | `recuperar_estado()` | Traduce el nombre persistido al objeto de estado. |
 | Coordinación | `Sistema._operar_bulto()` en [sistema.py](../backend/services/sistema.py) | Valida ubicación/evidencia y coordina remito, inventario e historial en una transacción. |
 
-Ejemplo real: `Bulto.despachar()` llama a `self._estado.despachar()`. `Precintado` devuelve `EnTransito`; `Preparado` hereda el rechazo de la operación. El comportamiento cambia según el objeto de estado, no por una lista de strings interpretada desde la pantalla.
+Pruebas: `test_estado_bulto_es_clase_abstracta`, `test_patron_state_transiciones_en_bulto`, `test_state_rechaza_saltos_y_operaciones_duplicadas`, `test_codigo_precinto_distinto_sigue_pendiente` y `test_precinto_roto_no_habilita_ni_retorna_cd` en [test_logistica.py](../tests/test_logistica.py).
 
-Los condicionales del servicio distinguen el caso de uso y sus efectos de inventario; la autorización de la transición queda en State. El patrón no sustituye la transacción ni la condición conjunta de verificación de remito y bulto.
+## 2. Singleton: gestor único de base de datos (Cap. 15.3 y 15.5.2)
 
-Pruebas: `test_state_rechaza_saltos_y_operaciones_duplicadas`, `test_codigo_precinto_distinto_sigue_pendiente` y `test_precinto_roto_no_habilita_ni_retorna_cd` en [test_logistica.py](../tests/test_logistica.py).
+**Problema:** garantizar que todos los componentes del sistema utilicen una única instancia del gestor de configuración y conexiones SQLite (`BaseDatos`), evitando reinicializaciones redundantes del esquema en cada invocación.
 
-## DAO: acceso a datos
+| Participante | Implementación | Responsabilidad |
+| --- | --- | --- |
+| Singleton | `BaseDatos` en [config.py](../backend/database/config.py) | Retiene la única instancia en el atributo de clase `_instance`, controla su creación sobrescribiendo `__new__(cls, ruta=None)` y protege la inicialización única mediante `_initialized`. |
+| Acceso y pruebas | `obtener_instancia()` y `reset_for_testing()` | Proporciona punto de acceso de clase y método de limpieza para aislar pruebas unitarias (Cap. 15.5.2). |
+
+Pruebas: `test_patron_singleton_base_datos` en [test_logistica.py](../tests/test_logistica.py).
+
+## 3. DAO: acceso a datos (Cap. 13.10)
 
 **Problema:** guardar/recuperar documentos y saldos sin introducir SQL en objetos de dominio ni formularios.
 
 | Implementación | Responsabilidad |
 | --- | --- |
 | [ProductoDAO](../backend/daos/producto_dao.py) | Guarda y obtiene productos. |
-| [BultoDAO](../backend/daos/bulto_dao.py) | Reconstruye Bulto, contrasta estado con historial y persiste transiciones. |
-| [CatalogoDAO](../backend/daos/catalogo_dao.py) | Accede a ubicaciones, categorías, proveedores, mínimos y movimientos/saldos. |
+| [BultoDAO](../backend/daos/bulto_dao.py) | Reconstruye `Bulto` con su `Remito` y `ContenidoBulto`, contrasta estado con historial y persiste transiciones. |
+| [CatalogoDAO](../backend/daos/catalogo_dao.py) | Accede a ubicaciones, categorías, proveedores, mínimos y movimientos/saldos con cálculo de costo promedio ponderado. |
 | [OperacionesDAO](../backend/daos/operaciones_dao.py) | Persiste compras, órdenes, remitos y contenido; consulta cantidades por asignar. |
+| [VentaDAO](../backend/daos/venta_dao.py) | Persiste y reconstruye ventas, detalles históricos de venta, cobros, comprobantes y movimientos de caja. |
 | [ConsultasDAO](../backend/daos/consultas_dao.py) | Ejecuta lecturas para las tablas de la interfaz. |
-| [BaseDatos](../backend/database/config.py) | Abre conexiones SQLite 3 con claves foráneas y controla confirmación/reversión de la transacción. |
 
-`Sistema` abre una operación y entrega la misma conexión a los DAOs participantes. Ningún DAO hace commit por su cuenta. Por ejemplo, verificar un bulto persiste remito, movimientos, saldos y transición juntos; si falla el historial, todo se revierte.
+`Sistema` abre una operación mediante el Singleton `BaseDatos` y entrega la misma conexión transaccional a los DAOs participantes. Ningún DAO hace commit por su cuenta.
 
-DAO es un patrón de acceso a datos y **no pertenece al catálogo GoF**. Se cuenta aquí conforme al requisito literal de al menos dos patrones y al material de la materia que lo trata como patrón; no se afirma que haya dos patrones GoF aplicados.
-
-Pruebas: `test_fallo_en_historial_revierte_estado_remito_y_stock`, `test_recorrido_persistencia_historial_y_reconciliacion` y `test_dos_preparaciones_concurrentes_no_sobreasignan`.
-
-## Tercer patrón
-
-No se incorporó un tercer patrón. `Sistema` es un servicio de aplicación; no se lo cuenta automáticamente como Facade. Tampoco se cuentan SQLite como Singleton, el mapa de estados como Factory Method ni la lista de refrescos de pantalla como Observer.
-
-La selección restante se hará al implementar operaciones comerciales y reportes, si aparece una necesidad real. El TP exige como mínimo dos; el objetivo aproximado de tres del grupo no obliga a agregar complejidad artificial.
+Pruebas: `test_fallo_en_historial_revierte_estado_remito_y_stock`, `test_fallo_en_comprobante_revierte_venta_stock_y_caja`, `test_recorrido_persistencia_historial_y_reconciliacion` y `test_dos_preparaciones_concurrentes_no_sobreasignan`.
 
 Diagramas: [clases implementadas](modelo_clases.md), [ciclo de vida](ciclo_bulto.md) y [secuencia de verificación](secuencia_verificacion.md).

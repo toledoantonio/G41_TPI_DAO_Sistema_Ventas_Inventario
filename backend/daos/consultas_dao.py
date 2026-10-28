@@ -1,4 +1,5 @@
 """Consultas de lectura con SQL centralizado fuera de los servicios."""
+
 from backend.patterns.estados_bulto import ErrorDominio
 
 CONSULTAS = {
@@ -30,9 +31,25 @@ CONSULTAS = {
                     COALESCE(e.disponible, 0) AS disponible, COALESCE(e.reservado, 0) AS reservado,
                     COALESCE(e.pendiente, 0) AS pendiente, COALESCE(e.rechazado, 0) AS rechazado,
                     COALESCE(e.minimo, 0) AS minimo,
+                    COALESCE(e.costo_centavos, 0) AS costo_centavos,
+                    COALESCE(e.disponible, 0) * COALESCE(e.costo_centavos, 0) AS valor_disponible_centavos,
                     MAX(0, COALESCE(e.minimo, 0) - COALESCE(e.disponible, 0)) AS faltante
                     FROM ubicacion u CROSS JOIN producto p LEFT JOIN existencia e
                     ON e.ubicacion_id = u.id AND e.producto_id = p.id ORDER BY u.codigo, p.codigo""",
+    "ventas": """SELECT v.id, v.fecha, v.local_id, u.nombre AS local, v.total_centavos,
+                 comp.numero AS comprobante,
+                 (SELECT SUM(cantidad) FROM detalle_venta WHERE venta_id = v.id) AS unidades,
+                 (SELECT SUM(cantidad * costo_unitario_centavos) FROM detalle_venta WHERE venta_id = v.id) AS costo_total_centavos,
+                 v.total_centavos - (SELECT SUM(cantidad * costo_unitario_centavos) FROM detalle_venta WHERE venta_id = v.id) AS margen_centavos
+                 FROM venta v
+                 JOIN ubicacion u ON u.id = v.local_id
+                 JOIN comprobante comp ON comp.venta_id = v.id
+                 ORDER BY v.id DESC""",
+    "caja": """SELECT mc.id, mc.fecha, mc.local_id, u.nombre AS local, mc.tipo,
+               mc.medio_pago, mc.importe_centavos, mc.causa, mc.referencia_id
+               FROM movimiento_caja mc
+               JOIN ubicacion u ON u.id = mc.local_id
+               ORDER BY mc.id DESC""",
 }
 
 
@@ -46,22 +63,77 @@ class ConsultasDAO:
         return [dict(fila) for fila in self.cx.execute(CONSULTAS[consulta])]
 
     def detalle_orden(self, identificador):
-        return [dict(fila) for fila in self.cx.execute("""SELECT d.producto_id, p.codigo, p.descripcion,
+        return [
+            dict(fila)
+            for fila in self.cx.execute(
+                """SELECT d.producto_id, p.codigo, p.descripcion,
             d.cantidad AS solicitada, d.cantidad - COALESCE((SELECT SUM(cb.cantidad)
             FROM contenido_bulto cb JOIN bulto b ON b.id = cb.bulto_id
             JOIN remito r ON r.id = b.remito_id
             WHERE r.orden_id = d.orden_id AND cb.producto_id = d.producto_id), 0) AS pendiente
             FROM detalle_reposicion d JOIN producto p ON p.id = d.producto_id WHERE d.orden_id = ?
-            ORDER BY p.codigo""", (identificador,))]
-
+            ORDER BY p.codigo""",
+                (identificador,),
+            )
+        ]
 
     def historial_bulto(self, identificador):
-        return [dict(fila) for fila in self.cx.execute("SELECT * FROM historial_bulto WHERE bulto_id = ? ORDER BY id",
-                                                 (identificador,))]
-
+        return [
+            dict(fila)
+            for fila in self.cx.execute(
+                "SELECT * FROM historial_bulto WHERE bulto_id = ? ORDER BY id",
+                (identificador,),
+            )
+        ]
 
     def contenido_bulto(self, identificador):
-        return [dict(fila) for fila in self.cx.execute("""SELECT p.codigo, p.descripcion, c.cantidad
+        return [
+            dict(fila)
+            for fila in self.cx.execute(
+                """SELECT p.codigo, p.descripcion, c.cantidad, c.costo_centavos
             FROM contenido_bulto c JOIN producto p ON p.id = c.producto_id WHERE c.bulto_id = ?
-            ORDER BY p.codigo""", (identificador,))]
+            ORDER BY p.codigo""",
+                (identificador,),
+            )
+        ]
 
+    def detalle_venta(self, identificador):
+        return [
+            dict(fila)
+            for fila in self.cx.execute(
+                """SELECT dv.id, dv.producto_id, p.codigo, p.descripcion, dv.cantidad,
+                   dv.precio_unitario_centavos, dv.costo_unitario_centavos,
+                   dv.cantidad * dv.precio_unitario_centavos AS subtotal_centavos,
+                   dv.cantidad * dv.costo_unitario_centavos AS costo_total_centavos,
+                   dv.cantidad * (dv.precio_unitario_centavos - dv.costo_unitario_centavos) AS margen_centavos
+                   FROM detalle_venta dv JOIN producto p ON p.id = dv.producto_id
+                   WHERE dv.venta_id = ? ORDER BY p.codigo""",
+                (identificador,),
+            )
+        ]
+
+    def cobros_venta(self, identificador):
+        return [
+            dict(fila)
+            for fila in self.cx.execute(
+                "SELECT * FROM cobro WHERE venta_id = ? ORDER BY id",
+                (identificador,),
+            )
+        ]
+
+    def comprobante_venta(self, identificador):
+        cabecera = self.cx.execute(
+            """SELECT comp.id, comp.numero, comp.venta_id, comp.fecha, comp.total_centavos,
+               v.local_id, u.codigo AS local_codigo, u.nombre AS local
+               FROM comprobante comp
+               JOIN venta v ON v.id = comp.venta_id
+               JOIN ubicacion u ON u.id = v.local_id
+               WHERE comp.venta_id = ?""",
+            (identificador,),
+        ).fetchone()
+        if cabecera is None:
+            raise ErrorDominio("Seleccione una venta con comprobante emitido.")
+        resultado = dict(cabecera)
+        resultado["detalles"] = self.detalle_venta(identificador)
+        resultado["cobros"] = self.cobros_venta(identificador)
+        return resultado

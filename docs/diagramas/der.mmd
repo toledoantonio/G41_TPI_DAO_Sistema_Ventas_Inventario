@@ -30,6 +30,7 @@ erDiagram
         int pendiente
         int rechazado
         int minimo
+        int costo_centavos
     }
     COMPRA {
         int id PK
@@ -71,6 +72,7 @@ erDiagram
         int bulto_id PK, FK
         int producto_id PK, FK
         int cantidad
+        int costo_centavos
     }
     HISTORIAL_BULTO {
         int id PK
@@ -88,6 +90,44 @@ erDiagram
         int reservado
         int pendiente
         int rechazado
+        string causa
+        int referencia_id
+        string fecha
+    }
+    VENTA {
+        int id PK
+        int local_id FK
+        string fecha
+        int total_centavos
+    }
+    DETALLE_VENTA {
+        int id PK
+        int venta_id FK
+        int producto_id FK
+        int cantidad
+        int precio_unitario_centavos
+        int costo_unitario_centavos
+    }
+    COBRO {
+        int id PK
+        int venta_id FK
+        string medio_pago
+        int importe_centavos
+        string fecha
+    }
+    COMPROBANTE {
+        int id PK
+        string numero UK
+        int venta_id FK, UK
+        string fecha
+        int total_centavos
+    }
+    MOVIMIENTO_CAJA {
+        int id PK
+        int local_id FK
+        string tipo
+        string medio_pago
+        int importe_centavos
         string causa
         int referencia_id
         string fecha
@@ -110,3 +150,9 @@ erDiagram
     BULTO ||--|{ HISTORIAL_BULTO : registra
     UBICACION ||--o{ MOVIMIENTO_INVENTARIO : afectada
     PRODUCTO ||--o{ MOVIMIENTO_INVENTARIO : afectado
+    UBICACION ||--o{ VENTA : registra_en_local
+    VENTA ||--|{ DETALLE_VENTA : contiene
+    PRODUCTO ||--o{ DETALLE_VENTA : vendido
+    VENTA ||--|{ COBRO : recibe
+    VENTA ||--|| COMPROBANTE : documenta
+    UBICACION ||--o{ MOVIMIENTO_CAJA : opera_caja

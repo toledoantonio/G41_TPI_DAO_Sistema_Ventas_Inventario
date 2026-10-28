@@ -22,9 +22,9 @@ sequenceDiagram
     S->>CD: ubicacion(local, LOCAL)
     Note over S: Validar que el local sea el destino
     S->>B: verificar(precinto, roto)
-    B->>E: verificar(roto)
-    E-->>B: Verificado o Rechazado
     Note over B,E: Codigo distinto integro lanza error antes de delegar
+    B->>E: verificar(self, roto)
+    E->>B: cambiar_estado(Verificado o Rechazado)
     Note over S: Exigir motivo si se rechaza
     S->>OD: cambiar_estado_remito()
     S->>BD: contenido(bulto)

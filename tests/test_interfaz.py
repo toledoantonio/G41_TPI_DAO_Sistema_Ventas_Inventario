@@ -1,65 +1,110 @@
+"""Pruebas de interfaz gráfica y colaboración con servicios usando pytest (Cap. 12)."""
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import tkinter as tk
-import unittest
 from unittest.mock import patch
+import pytest
 
+from backend.database.config import BaseDatos
 from backend.demo import cargar_demo
 from backend.services.sistema import Sistema
 from frontend.app import Aplicacion
 
 
-class InterfazTest(unittest.TestCase):
-    def setUp(self):
+class TestInterfaz:
+    """Suite de pruebas para los formularios y manejadores de eventos de la pantalla."""
+
+    @classmethod
+    def setup_class(cls):
+        try:
+            cls.raiz = tk.Tk()
+            cls.raiz.withdraw()
+        except tk.TclError as error:
+            cls.raiz = None
+            cls.error_tk = error
+
+    @classmethod
+    def teardown_class(cls):
+        if getattr(cls, "raiz", None) is not None:
+            cls.raiz.update_idletasks()
+            cls.raiz.destroy()
+            cls.raiz = None
+
+    def setup_method(self):
+        BaseDatos.reset_for_testing()
+        if self.raiz is None:
+            pytest.skip(f"Tk no está disponible: {self.error_tk}")
+        for widget in self.raiz.winfo_children():
+            widget.destroy()
         carpeta = Path(__file__).resolve().parents[1] / "tmp"
         carpeta.mkdir(exist_ok=True)
         self.temporal = TemporaryDirectory(dir=carpeta)
-        self.addCleanup(self.temporal.cleanup)
         self.s = Sistema(Path(self.temporal.name) / "interfaz.sqlite3")
         cargar_demo(self.s)
-        try:
-            self.raiz = tk.Tk()
-        except tk.TclError as error:
-            self.skipTest(f"Tk no está disponible: {error}")
-        self.addCleanup(self.raiz.destroy)
-        self.raiz.withdraw()
         self.app = Aplicacion(self.raiz, self.s)
         self.raiz.update()
 
+    def teardown_method(self):
+        if hasattr(self, "app"):
+            for widget in self.raiz.winfo_children():
+                widget.destroy()
+            del self.app
+        BaseDatos.reset_for_testing()
+        self.temporal.cleanup()
+
     def test_formulario_producto_guarda_y_edita(self):
+        """Verifica el alta y la edición de un producto desde el formulario de catálogo."""
         editor = self.app.editores["productos"]
         categoria = self.s.listar("categorias")[0]["id"]
-        editor.formulario.completar({"codigo": "P02", "descripcion": "Desde pantalla", "categoria_id": categoria,
-                                     "precio_centavos": 321})
+        editor.formulario.completar(
+            {"codigo": "P02", "descripcion": "Desde pantalla", "categoria_id": categoria, "precio_centavos": 321}
+        )
         editor.boton_guardar.invoke()
         producto = self.s.listar("productos")[1]
-        self.assertEqual((producto["codigo"], producto["precio_centavos"]), ("P02", 321))
+        assert (producto["codigo"], producto["precio_centavos"]) == ("P02", 321)
+
         iid = next(i for i, fila in editor.tabla.filas.items() if fila["id"] == producto["id"])
         editor.tabla.arbol.selection_set(iid)
         editor.editar()
         editor.formulario.variables["precio_centavos"].set("4.56")
         editor.boton_guardar.invoke()
-        self.assertEqual(self.s.listar("productos")[1]["precio_centavos"], 456)
+        assert self.s.listar("productos")[1]["precio_centavos"] == 456
 
-    def test_callbacks_logistica_y_actualizacion_inventario(self):
+    def test_callbacks_logistica_venta_y_actualizacion_inventario(self):
+        """Verifica logística, verificación de costo y registro de venta desde la pantalla."""
         local = next(u["id"] for u in self.s.listar("ubicaciones") if u["tipo"] == "LOCAL")
         self.app.bultos.arbol.selection_set("0")
         with patch("frontend.app.messagebox.showerror") as error:
             for accion in ("despachar", "recibir"):
-                self.assertTrue(self.app.ejecutar(lambda a=accion: self.app.operar_bulto(a)))
+                assert self.app.ejecutar(lambda a=accion: self.app.operar_bulto(a))
             self.app.logistica_form.variables["precinto"].set("PRECINTO-DEMO-01")
-            self.assertTrue(self.app.ejecutar(lambda: self.app.operar_bulto("verificar")))
+            assert self.app.ejecutar(lambda: self.app.operar_bulto("verificar"))
             error.assert_not_called()
-            self.assertFalse(self.app.ejecutar(lambda: self.app.operar_bulto("verificar")))
+            assert not self.app.ejecutar(lambda: self.app.operar_bulto("verificar"))
             error.assert_called_once()
+
         fila = next(f for f in self.app.inventario.filas.values() if f["ubicacion_id"] == local)
-        self.assertEqual((fila["disponible"], fila["pendiente"]), (10, 0))
+        assert (fila["disponible"], fila["pendiente"], fila["costo_centavos"]) == (10, 0, 6000)
+
+        # Registrar una venta de 3 unidades desde la pestaña 6 de la interfaz
+        self.app.venta_items.formulario.variables["cantidad"].set("3")
+        self.app.venta_items.boton_agregar.invoke()
+        self.app.venta_cobros.boton_saldar.invoke()
+        self.app.boton_confirmar_venta.invoke()
+
+        ventas = self.s.listar("ventas")
+        assert len(ventas) == 1
+        assert (ventas[0]["unidades"], ventas[0]["total_centavos"], ventas[0]["costo_total_centavos"]) == (
+            3,
+            30000,
+            18000,
+        )
+        fila_post = next(f for f in self.app.inventario.filas.values() if f["ubicacion_id"] == local)
+        assert fila_post["disponible"] == 7
 
     def test_demo_no_repite_compra_ni_bulto(self):
-        self.assertFalse(cargar_demo(self.s))
-        self.assertEqual(len(self.s.listar("compras")), 1)
-        self.assertEqual(len(self.s.listar("bultos")), 1)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        """Verifica que la carga de demostración no duplique registros en una base poblada."""
+        assert not cargar_demo(self.s)
+        assert len(self.s.listar("compras")) == 1
+        assert len(self.s.listar("bultos")) == 1

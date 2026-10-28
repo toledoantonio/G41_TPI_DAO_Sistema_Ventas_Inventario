@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS existencia (
     pendiente INTEGER NOT NULL DEFAULT 0 CHECK (pendiente >= 0),
     rechazado INTEGER NOT NULL DEFAULT 0 CHECK (rechazado >= 0),
     minimo INTEGER NOT NULL DEFAULT 0 CHECK (minimo >= 0),
+    costo_centavos INTEGER NOT NULL DEFAULT 0 CHECK (costo_centavos >= 0),
     PRIMARY KEY (ubicacion_id, producto_id)
 );
 CREATE TABLE IF NOT EXISTS compra (
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS contenido_bulto (
     bulto_id INTEGER NOT NULL REFERENCES bulto(id),
     producto_id INTEGER NOT NULL REFERENCES producto(id),
     cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    costo_centavos INTEGER NOT NULL DEFAULT 0 CHECK (costo_centavos >= 0),
     PRIMARY KEY (bulto_id, producto_id)
 );
 CREATE TABLE IF NOT EXISTS historial_bulto (
@@ -98,4 +100,43 @@ CREATE TABLE IF NOT EXISTS movimiento_inventario (
     referencia_id INTEGER NOT NULL,
     fecha TEXT NOT NULL,
     UNIQUE (ubicacion_id, producto_id, causa, referencia_id)
+);
+CREATE TABLE IF NOT EXISTS venta (
+    id INTEGER PRIMARY KEY,
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS detalle_venta (
+    id INTEGER PRIMARY KEY,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    producto_id INTEGER NOT NULL REFERENCES producto(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    precio_unitario_centavos INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
+    costo_unitario_centavos INTEGER NOT NULL CHECK (costo_unitario_centavos >= 0),
+    UNIQUE (venta_id, producto_id)
+);
+CREATE TABLE IF NOT EXISTS cobro (
+    id INTEGER PRIMARY KEY,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    medio_pago TEXT NOT NULL,
+    importe_centavos INTEGER NOT NULL CHECK (importe_centavos > 0),
+    fecha TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS comprobante (
+    id INTEGER PRIMARY KEY,
+    numero TEXT NOT NULL UNIQUE,
+    venta_id INTEGER NOT NULL UNIQUE REFERENCES venta(id),
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS movimiento_caja (
+    id INTEGER PRIMARY KEY,
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    tipo TEXT NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+    medio_pago TEXT NOT NULL,
+    importe_centavos INTEGER NOT NULL CHECK (importe_centavos > 0),
+    causa TEXT NOT NULL,
+    referencia_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL
 );

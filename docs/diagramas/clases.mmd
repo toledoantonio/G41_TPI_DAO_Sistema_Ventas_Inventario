@@ -5,34 +5,128 @@ classDiagram
         actualizar()
     }
     class Sistema {
-        db
+        db : BaseDatos
         registrar_compra(referencia, proveedor_id, cd_id, detalles)
         crear_orden(cd_id, local_id, detalles)
         preparar_bulto(orden_id, numero_remito, detalles)
         verificar(bulto_id, local_id, precinto_observado, roto, observacion)
+        registrar_venta(local_id, detalles, cobros, numero_comprobante)
         _operacion()
     }
     class BaseDatos {
-        ruta
-        conectar()
-        transaccion()
+        <<Singleton>>
+        -_instance : BaseDatos
+        -_initialized : bool
+        -_ruta : Path
+        +__new__(cls, ruta) : BaseDatos
+        +obtener_instancia(ruta) : BaseDatos
+        +reset_for_testing()
+        +conectar()
+        +transaccion()
+    }
+    class Ubicacion {
+        -_codigo : str
+        -_nombre : str
+        -_direccion : str
+        -_tipo : str
+        +crear(cod, nombre, direccion, tipo, id)
+    }
+    class CentroDistribucion
+    class Local
+    class Categoria {
+        -_nombre : str
+    }
+    class Proveedor {
+        -_codigo : str
+        -_nombre : str
     }
     class Producto {
-        codigo
-        descripcion
-        categoria_id
-        precio_centavos
-        __post_init__()
+        -_codigo : str
+        -_descripcion : str
+        -_categoria_id : int
+        -_precio_centavos : int
+        +precio : str
+    }
+    class Compra {
+        -_referencia : str
+        -_proveedor_id : int
+        -_cd_id : int
+        -_detalles : list
+        +agregar_detalle(producto_id, cantidad, costo)
+        +total_centavos : int
+    }
+    class DetalleCompra {
+        -_producto_id : int
+        -_cantidad : int
+        -_costo_centavos : int
+        +subtotal_centavos : int
+    }
+    class OrdenReposicion {
+        -_cd_id : int
+        -_local_id : int
+        -_detalles : list
+        +agregar_detalle(producto_id, cantidad)
+        +cantidad_total : int
+    }
+    class DetalleReposicion {
+        -_producto_id : int
+        -_cantidad : int
+    }
+    class Remito {
+        -_numero : str
+        -_orden_id : int
+        -_estado : str
     }
     class Bulto {
-        id
-        precinto
-        _estado
-        estado
-        precintar(valor)
-        despachar()
-        recibir()
-        verificar(precinto_observado, roto)
+        -_id : int
+        -_precinto : str
+        -_estado : EstadoBulto
+        -_contenido : list
+        +cambiar_estado(nuevo_estado)
+        +agregar_contenido(producto_id, cantidad, costo_centavos)
+        +precintar(valor)
+        +despachar()
+        +recibir()
+        +verificar(precinto_observado, roto)
+    }
+    class ContenidoBulto {
+        -_producto_id : int
+        -_cantidad : int
+        -_costo_centavos : int
+    }
+    class Venta {
+        -_id : int
+        -_local_id : int
+        -_detalles : list
+        -_cobros : list
+        -_comprobante : Comprobante
+        +agregar_detalle(producto_id, cantidad, precio, costo)
+        +agregar_cobro(medio_pago, monto)
+        +emitir_comprobante(numero)
+        +validar_operacion()
+        +total_centavos : int
+        +costo_total_centavos : int
+        +margen_centavos : int
+    }
+    class DetalleVenta {
+        -_producto_id : int
+        -_cantidad : int
+        -_precio_unitario_centavos : int
+        -_costo_unitario_centavos : int
+        +subtotal_centavos : int
+        +costo_total_centavos : int
+        +margen_centavos : int
+    }
+    class Cobro {
+        -_medio_pago : str
+        -_importe_centavos : int
+        +importe : str
+    }
+    class Comprobante {
+        -_numero : str
+        -_venta_id : int
+        -_total_centavos : int
+        +total : str
     }
     class ProductoDAO {
         cx
@@ -60,20 +154,47 @@ classDiagram
         crear_bulto_con_remito(orden_id, numero)
         cambiar_estado_remito(identificador, estado)
     }
+    class VentaDAO {
+        cx
+        crear_venta(venta)
+        guardar_detalle(venta_id, detalle)
+        guardar_cobro(venta_id, cobro, fecha)
+        guardar_comprobante(comprobante)
+        registrar_movimiento_caja(local_id, tipo, medio_pago, importe_centavos, causa, ref_id, fecha)
+        obtener(identificador)
+    }
     class ConsultasDAO {
         cx
         listar(consulta)
         detalle_orden(identificador)
         historial_bulto(identificador)
+        detalle_venta(identificador)
+        cobros_venta(identificador)
+        comprobante_venta(identificador)
     }
+    Ubicacion <|-- CentroDistribucion
+    Ubicacion <|-- Local
+    Compra "1" *-- "1..*" DetalleCompra : contiene
+    OrdenReposicion "1" *-- "1..*" DetalleReposicion : contiene
+    Bulto "1" *-- "1..*" ContenidoBulto : contiene
+    Bulto "1" --> "0..1" Remito : documentado por
+    Venta "1" *-- "1..*" DetalleVenta : contiene
+    Venta "1" *-- "1..*" Cobro : registra
+    Venta "1" *-- "1" Comprobante : emite
     Aplicacion --> Sistema : utiliza
-    Sistema --> BaseDatos : controla transaccion
-    Sistema ..> Producto : construye
+    Sistema --> BaseDatos : instancia unica
+    Sistema ..> Ubicacion : instancia
+    Sistema ..> Producto : instancia
+    Sistema ..> Compra : instancia
+    Sistema ..> OrdenReposicion : instancia
     Sistema ..> Bulto : coordina
+    Sistema ..> Venta : coordina
     Sistema ..> ProductoDAO
     Sistema ..> BultoDAO
     Sistema ..> CatalogoDAO
     Sistema ..> OperacionesDAO
+    Sistema ..> VentaDAO
     Sistema ..> ConsultasDAO
     ProductoDAO ..> Producto : recibe
     BultoDAO ..> Bulto : reconstruye
+    VentaDAO ..> Venta : persiste y reconstruye
