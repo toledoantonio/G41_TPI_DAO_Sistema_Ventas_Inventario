@@ -173,7 +173,7 @@ erDiagram
 | `categoria` | id; nombre | Nombre único sin distinción ASCII de mayúsculas/minúsculas (`NOCASE`). |
 | `proveedor` | id; código, nombre | Código de negocio único normalizado. |
 | `producto` | id; código, descripción, categoría, precio en centavos | Código único; FK categoría; importe no negativo. |
-| `existencia` | PK compuesta ubicación/producto; disponible, reservado, pendiente, rechazado, mínimo, `costo_centavos` | FK a ambos extremos; valores no negativos. `costo_centavos` conserva el costo promedio ponderado vigente en la ubicación. |
+| `existencia` | PK compuesta ubicación/producto; disponible, reservado, pendiente, rechazado, mínimo, `costo_centavos` | FK a ambos extremos; valores no negativos. `costo_centavos` conserva el promedio ponderado del Disponible; excluye reservas, pendientes y rechazados. Con disponible cero no representa valor de stock. |
 | `compra` | id; referencia, proveedor, CD, fecha | Referencia única y FK a proveedor/ubicación; el servicio exige CD. |
 | `detalle_compra` | PK compra/producto; cantidad, costo en centavos | Cantidad positiva; costo histórico no negativo; actualiza el costo promedio del CD. |
 | `orden_reposicion` | id; CD, local, fecha | FK a ubicaciones distintas; el servicio exige sus funciones. |
@@ -190,3 +190,13 @@ erDiagram
 | `movimiento_caja` | id; local, tipo (`INGRESO`/`EGRESO`), `medio_pago`, `importe_centavos`, causa, `referencia_id`, fecha | Registra el ingreso de caja por cada cobro confirmado. |
 
 Fuente editable del diagrama: [der.mmd](diagramas/der.mmd).
+
+## Migración de costos
+
+La versión económica se identifica con `PRAGMA user_version = 1`. Las bases previas no tenían versión (`0`). La creación del esquema, columnas faltantes, reconstrucción y cambio de versión se confirman juntos bajo `BEGIN IMMEDIATE`. Si falla una comprobación, se revierten todos esos cambios y se puede reintentar después de conciliar el respaldo. Una versión superior se rechaza para evitar abrirla con código anterior.
+
+La reconstrucción recorre `movimiento_inventario` por su id global, no por fecha: compra → preparación → despacho → recepción → verificación/rechazo → venta. Cada compra aporta su costo histórico; al preparar se apartan unidades del promedio Disponible y se fija el costo del bulto. Las bases que no tenían la columna de costo del contenido la completan a partir de esa secuencia. Al verificar, el costo del bulto se promedia con el Disponible del local; un rechazo no habilita unidades ni altera ese promedio.
+
+Si la base ya tenía costos de bultos y ventas registrados, se respetan esos históricos, incluso valores cero. Las diferencias entre salidas históricas y promedio reconstruido se asignan al stock Disponible remanente. No se recalculan márgenes de ventas pasadas ni se inventan costos faltantes. Si el valor restante es negativo o existe una diferencia significativa sin unidades remanentes, se informa que hace falta conciliación y se revierte la migración. Una base ya migrada por versiones anteriores con costos cero requiere revisar esos documentos: cero no permite distinguir por sí solo mercadería gratuita de un dato económico perdido.
+
+Se contrastan movimientos con sus documentos y con los cuatro saldos por ubicación/producto. No se modifican cantidades, mínimos, comprobantes, caja ni historial de estados. La migración se ejecuta una sola vez; las siguientes aperturas conservan los costos operados. Los promedios unitarios se redondean a centavos con `ROUND_HALF_UP`, por lo que puede haber diferencias de redondeo al valorizar muchas unidades.

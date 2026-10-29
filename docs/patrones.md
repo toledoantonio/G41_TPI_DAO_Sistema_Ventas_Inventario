@@ -29,6 +29,8 @@ Pruebas: `test_estado_bulto_es_clase_abstracta`, `test_patron_state_transiciones
 
 Pruebas: `test_patron_singleton_base_datos` en [test_logistica.py](../tests/test_logistica.py).
 
+La configuración es única **por proceso**. Las rutas se expanden y resuelven antes de compararlas; solicitar otra base produce `ValueError` sin alterar el gestor existente ni crear el archivo solicitado. Un `RLock` protege creación e inicialización concurrentes. Cada operación abre su propia conexión SQLite: no se comparte una conexión entre hilos. `reset_for_testing()` solo se usa para aislar pruebas; para cambiar de base en uso normal se reinicia la aplicación. Las pruebas de rutas y concurrencia están en [test_costos_migracion.py](../tests/test_costos_migracion.py).
+
 ## 3. DAO: acceso a datos (Cap. 13.10)
 
 **Problema:** guardar/recuperar documentos y saldos sin introducir SQL en objetos de dominio ni formularios.

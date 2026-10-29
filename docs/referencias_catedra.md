@@ -38,7 +38,7 @@ Siguiendo los Capítulos 11.2 y 16.2 de la guía de clase:
 - **DAO:** se mantiene para separar persistencia (Cap. 13.10).
 - **Observer:** candidato concreto para futuras vistas de inventario, logística y reportes que necesiten reaccionar de forma independiente a cambios confirmados.
 - **Strategy:** evaluar al implementar cobros, políticas de precios o reportes si aparecen algoritmos alternativos reales (Cap. 16.3).
-- **Singleton:** visto en el Cap. 15; evaluar solo si se requiere garantizar instancia única de configuración o gestor sin acoplar pruebas.
+- **Singleton:** aplicado en `BaseDatos` como gestor único de configuración por proceso; cada operación conserva su propia conexión. Rechaza cambios de ruta y protege la inicialización concurrente; las pruebas se aíslan mediante reinicio explícito del gestor.
 
 ## Reportes
 

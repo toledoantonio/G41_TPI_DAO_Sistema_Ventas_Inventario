@@ -1,12 +1,12 @@
 # Decisiones de implementación
 
-Fecha: 22/10/2026. El usuario indicó resolver las dudas con alternativas simples, basadas en el dominio de la consigna, sin esperar aclaraciones docentes. Estas decisiones reemplazan las propuestas incompatibles del análisis del 12/10. No se atribuyen al profesor.
+Actualizado: 28/10/2026. El usuario indicó resolver las dudas con alternativas simples, basadas en el dominio de la consigna, sin esperar aclaraciones docentes. Estas decisiones reemplazan las propuestas incompatibles del análisis del 12/10. No se atribuyen al profesor.
 
 ## Alcance del incremento implementado
 
 Aplicación de escritorio Python con Tkinter y SQLite 3, sin dependencias externas de ejecución. Implementa alta y modificación de catálogo/ubicaciones, mínimos, compra recibida, pedido por local, preparación, precintado, despacho, recepción, verificación/rechazo e inventario consultable. Hay varios productos por compra, orden y bulto; los renglones repetidos se consolidan antes de validar cantidades.
 
-Ventas, cobros, comprobantes comerciales, devoluciones y los reportes restantes son próximos incrementos obligatorios. Todavía no se declara terminado el TP ni se implementan procesos opcionales. Los costos de compra se conservan, pero aún no se calcula valorización, costo de venta ni margen.
+También se implementaron ventas de varios productos, cobros simples o mixtos, caja y comprobantes internos; precio y costo históricos quedan conservados por detalle. La operación completa se confirma o revierte junta. El inventario Disponible se valoriza por promedio ponderado, y las transferencias conservan el costo fijo de preparación del bulto. Devoluciones y cuatro reportes no triviales siguen pendientes; el TP aún no está terminado.
 
 ## Reglas adoptadas
 
@@ -23,9 +23,12 @@ Ventas, cobros, comprobantes comerciales, devoluciones y los reportes restantes 
 | A13 | Stock inicial cero; ingresar mercadería mediante compra | La demostración utiliza una compra real dentro de una base separada, no saldos insertados sin procedencia. |
 | A14 / D20 | Cantidades enteras en unidades; importes con hasta dos decimales, guardados en centavos | Validación con Decimal; importes negativos o más de dos decimales se rechazan. Sin integración monetaria ni fiscal. El límite de entrada por cantidad/importe es 1.000.000.000. |
 | Frontend | Tkinter/ttk | Incluido con la distribución habitual de Python para Windows; se ejecuta localmente, sin servidor ni herramientas de frontend adicionales. |
-| Patrones | State y DAO aplicados | State delega acciones en seis estados concretos. DAO separa SQL del dominio, los servicios y la pantalla. El tercer patrón sigue sin seleccionarse; no se fuerza una abstracción sin necesidad. |
+| Patrones | State, DAO y Singleton aplicados | State delega en seis estados concretos; DAO separa SQL. Singleton conserva un gestor por proceso, con ruta fija y conexión independiente por operación. |
+| D18 / Costos | Promedio ponderado del Disponible, redondeado al centavo | Preparar retira unidades del conjunto que se promedia. Reservado, Pendiente, En tránsito y Rechazado conservan el costo del contenido del bulto. Comprar no revaloriza esas unidades. Verificar incorpora su costo al promedio Disponible del local. |
 
-Decisiones para los siguientes incrementos: venta con pago completo y un comprobante interno; medios de pago registrados sin pasarela; devolución vinculada al detalle original, en el mismo local, con cantidades acumuladas controladas y reintegro al precio original. Sin plazo arbitrario agregado por el sistema: la política base validará origen, cantidad y condición de mercadería. La vendibilidad se inspecciona independientemente del reintegro. Costo promedio ponderado sigue como propuesta económica a implementar junto con ventas, preservando costo histórico y transferencias. Estos procesos todavía no están programados.
+La venta exige pago completo y emite un comprobante interno; los medios de pago se registran sin pasarela. Próximo incremento: devolución vinculada al detalle original, en el mismo local, con cantidades acumuladas controladas y reintegro al precio original. Sin plazo arbitrario agregado por el sistema: la política base validará origen, cantidad y condición de mercadería. La vendibilidad se inspeccionará independientemente del reintegro. La devolución todavía no está programada.
+
+Las bases anteriores reconstruyen costos mediante una migración versionada y transaccional desde documentos y movimientos. No se reescriben ventas ni costos de bultos ya registrados; si no hay respaldo suficiente se revierte la migración. Los límites y el tratamiento de históricos están detallados en [modelo de datos](modelo_datos.md#migración-de-costos).
 
 ## Garantías verificadas
 
@@ -35,5 +38,8 @@ Decisiones para los siguientes incrementos: venta con pago completo y un comprob
 - Compra repetida, precinto repetido, producto/proveedor duplicado, origen/destino equivocado y sobreasignación se rechazan.
 - Disponible del local solo aumenta cuando **bulto y remito** están Verificados. Recibido queda Pendiente; Rechazado no se vende.
 - Los mínimos se consultan también con saldo cero. Los movimientos explican las variaciones de cada condición de inventario.
+- La venta consolida cantidades, no supera Disponible y exige cobros por el total exacto. Un comprobante duplicado revierte venta, stock y caja.
+- Una compra entre preparación y despacho mantiene el costo de lo reservado. Se verifica conservación de valor con datos conocidos, respetando el redondeo unitario a centavos.
+- La migración conserva saldos e historial, revierte cambios ante inconsistencias y no se repite al reabrir. El Singleton rechaza otra ruta y serializa la inicialización concurrente.
 
 La inmutabilidad exigida es del historial de estados en la aplicación y la base local; no se añade un sistema de auditoría criptográfica ni permisos de usuarios.

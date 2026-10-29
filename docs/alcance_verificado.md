@@ -1,6 +1,6 @@
 # Cobertura del trabajo práctico
 
-Revisión del 27/10/2026 contra el código, el esquema SQLite y los procesos de la consigna.
+Revisión del 28/10/2026 contra el código, el esquema SQLite y los procesos de la consigna.
 
 ## Procesos obligatorios
 
@@ -28,6 +28,8 @@ Revisión del 27/10/2026 contra el código, el esquema SQLite y los procesos de 
 | Al menos dos patrones | **Cumplido:** **State** (GoF), **Singleton** (GoF) y **DAO** aplicados, documentados y probados con `pytest`. |
 | Al menos cuatro reportes no triviales | **Pendiente (Incremento 3).** |
 | SQLite 3 y frontend | Implementados: `sqlite3` y `Tkinter/ttk`. |
+
+Correcciones verificadas: costos fijos de reservas separados del promedio Disponible; conservación de valor en compras intercaladas con transferencias y ventas; reconstrucción transaccional/versionada de costos anteriores, con reapertura y rollback; configuración única que rechaza otra ruta e inicialización concurrente protegida. Véanse [regresiones](../tests/test_costos_migracion.py) y [límites de migración y redondeo](modelo_datos.md#migración-de-costos).
 
 ## Orden de implementación pendiente
 

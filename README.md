@@ -55,11 +55,18 @@ Para probar el flujo completo:
 
 ## Verificación
 
+Instalar la dependencia de pruebas (la aplicación no requiere paquetes externos):
+
 ```powershell
+python -m pip install -r requirements-dev.txt
 python -m pytest -v
 ```
 
 Las pruebas están escritas con `pytest` (Cap. 12) usando bases temporales y verifican modelos de dominio (encapsulamiento, composición, herencia, clases abstractas `ABC` y patrón `Singleton`), persistencia, costos promedio ponderados, ventas, cobros, comprobantes, historial, estados, rechazo, duplicados, sobreasignación, transacciones, concurrencia y formularios de interfaz.
+
+El costo promedio mostrado corresponde al **Disponible**. Los bultos conservan su costo desde la preparación; una compra posterior no revaloriza lo reservado. Los promedios se redondean al centavo con `ROUND_HALF_UP`.
+
+Al abrir una base anterior se reconstruyen los costos desde compras y movimientos registrados, en una migración transaccional y versionada. Se conservan cantidades y documentos históricos. Si faltan respaldos o los saldos no coinciden, la apertura informa el problema y revierte la migración; véanse los [criterios de migración](docs/modelo_datos.md#migración-de-costos).
 
 ## Patrones de diseño
 

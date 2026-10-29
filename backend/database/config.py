@@ -3,6 +3,9 @@
 from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
+from threading import RLock
+
+from backend.database.migraciones import migrar_costos
 
 
 class BaseDatos:
@@ -15,43 +18,41 @@ class BaseDatos:
 
     _instance = None
     _initialized = False
+    _lock = RLock()
 
     def __new__(cls, ruta=None):
         """Sobrescribe __new__ para controlar la creación de la única instancia (GoF)."""
-        if cls._instance is None:
-            cls._instance = super(BaseDatos, cls).__new__(cls)
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(BaseDatos, cls).__new__(cls)
         return cls._instance
 
     def __init__(self, ruta=None):
         """Inicializa la configuración y el esquema solo en la primera creación."""
-        if ruta is not None and BaseDatos._initialized and getattr(self, "_ruta", None) != Path(ruta):
-            # Si se solicita explícitamente otra ruta (ej. nuevo archivo temporal en tests),
-            # se reinicializa la configuración sobre la instancia única.
-            BaseDatos._initialized = False
-
-        if not BaseDatos._initialized:
-            if ruta is None:
+        with BaseDatos._lock:
+            ruta_normalizada = Path(ruta).expanduser().resolve() if ruta is not None else None
+            if BaseDatos._initialized:
+                if ruta_normalizada is not None and self._ruta != ruta_normalizada:
+                    raise ValueError("La base de datos ya está configurada con otra ruta; reinicie la aplicación para cambiarla.")
+                return
+            if ruta_normalizada is None:
                 raise ValueError("Debe proporcionar la ruta de la base de datos en la primera inicialización.")
-            self._ruta = Path(ruta)
+            self._ruta = ruta_normalizada
             self._ruta.parent.mkdir(parents=True, exist_ok=True)
             with self.conectar() as conexion:
-                conexion.executescript(Path(__file__).with_name("esquema.sql").read_text(encoding="utf-8"))
-                self._migrar_columnas(conexion)
+                try:
+                    esquema = Path(__file__).with_name("esquema.sql").read_text(encoding="utf-8")
+                    conexion.executescript("BEGIN IMMEDIATE;\n" + esquema)
+                    migrar_costos(conexion)
+                    conexion.commit()
+                except Exception:
+                    conexion.rollback()
+                    raise
             BaseDatos._initialized = True
 
     @property
     def ruta(self):
         return self._ruta
-
-    @staticmethod
-    def _migrar_columnas(conexion):
-        """Asegura que bases creadas en incrementos previos incorporen costo_centavos."""
-        for tabla in ("existencia", "contenido_bulto"):
-            columnas = {fila["name"] for fila in conexion.execute(f"PRAGMA table_info({tabla})")}
-            if "costo_centavos" not in columnas:
-                conexion.execute(
-                    f"ALTER TABLE {tabla} ADD COLUMN costo_centavos INTEGER NOT NULL DEFAULT 0 CHECK (costo_centavos >= 0)"
-                )
 
     @classmethod
     def obtener_instancia(cls, ruta=None):
@@ -61,8 +62,9 @@ class BaseDatos:
     @classmethod
     def reset_for_testing(cls):
         """Resetea el estado del Singleton para ambientes de testing (Cap. 15.5.2)."""
-        cls._instance = None
-        cls._initialized = False
+        with cls._lock:
+            cls._instance = None
+            cls._initialized = False
 
     @contextmanager
     def conectar(self):
