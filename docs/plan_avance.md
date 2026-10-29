@@ -1,6 +1,6 @@
 # Plan del trabajo práctico
 
-Actualizado: 27/10/2026. Rama: `codex/plan-avance-tp`.
+Actualizado: 28/10/2026. Rama: `codex/correcciones-costos-singleton`, basada en `antigravity/paso1-y-singleton`.
 
 ## Criterios confirmados
 
@@ -17,6 +17,8 @@ Se implementaron y verificaron:
 2. Compra recibida (`Compra`, `DetalleCompra`) con actualización de **costo promedio ponderado** en el CD.
 3. Orden de reposición por local (`OrdenReposicion`, `DetalleReposicion`), preparación con reserva y captura del costo histórico de transferencia en `ContenidoBulto`, precintado, despacho, recepción y verificación/rechazo (`Bulto`, `Remito`, `EstadoBulto(ABC)`), transfiriendo el costo promedio ponderado al local al verificar.
 4. **Incremento obligatorio 1 completado:** Venta con uno o varios productos (`Venta`, `DetalleVenta`), consolidación de cantidades, conservación de precio y costo histórico, cobro completo simple o mixto (`Cobro`), movimiento de caja (`movimiento_caja`) y emisión de comprobante interno (`Comprobante`), todo confirmado en una misma transacción y demostrable desde la pestaña **6. Ventas y caja** de la interfaz.
+
+Correcciones del 28/10: el promedio pondera solo Disponible y mantiene reservas a costo fijo; la migración versionada reconstruye costos anteriores desde movimientos, con rollback ante inconsistencias; el Singleton normaliza rutas, rechaza otra base y serializa su inicialización. La suite cubre también conservación de valor, migración/reapertura, pendientes/rechazados y apertura concurrente. El promedio unitario redondeado admite diferencias de redondeo; no se presenta como contabilidad de valor exacto a precisión ilimitada.
 
 Documentación vigente:
 

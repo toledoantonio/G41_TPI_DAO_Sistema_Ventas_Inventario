@@ -281,9 +281,10 @@ class TestFlujoLogisticoYVentas:
         assert self.s.contenido_bulto(b1)[0]["costo_centavos"] == 7000
 
         # Antes de verificar b1 en el local, el CD compra 10 u. más a $100.00 (10000 centavos)
-        # CD tenía 10 disp + 10 res = 20 u. a 7000 + 10 u. a 10000 -> 30 u. a 8000 centavos
+        # Solo promedian 10 disponibles a 7000 + 10 nuevas a 10000 = 8500.
+        # Las 10 reservadas conservan su costo de 7000 en el bulto.
         self.s.registrar_compra("C3", self.proveedor, self.cd, [(self.p, 10, "100.00")])
-        assert self.saldo(self.cd)["costo_centavos"] == 8000
+        assert self.saldo(self.cd)["costo_centavos"] == 8500
 
         # Al verificar b1 en el local, el local recibe el costo histórico del bulto b1 (7000)
         self.s.precintar(b1, "S1")
@@ -292,15 +293,16 @@ class TestFlujoLogisticoYVentas:
         self.s.verificar(b1, self.local, "S1")
         assert self.saldo(self.local)["costo_centavos"] == 7000
 
-        # Segundo bulto de 10 u. sale al nuevo costo del CD (8000); al verificarse en el local
-        # promedia 10 u. a 7000 + 10 u. a 8000 = 7500 centavos ($75.00)
+        # Segundo bulto a 8500; el local promedia 10 a 7000 + 10 a 8500 = 7750.
         b2 = self.s.preparar_bulto(orden, "R2", [(self.p, 10)])
         self.s.precintar(b2, "S2")
         self.s.despachar(b2)
         self.s.recibir(b2, self.local)
         self.s.verificar(b2, self.local, "S2")
         assert self.saldo(self.local)["disponible"] == 20
-        assert self.saldo(self.local)["costo_centavos"] == 7500
+        assert self.saldo(self.local)["costo_centavos"] == 7750
+        # Compras por $2400 = CD (10 * $85) + local (20 * $77,50).
+        assert sum(f["valor_disponible_centavos"] for f in self.s.listar("inventario")) == 240000
 
     def test_venta_con_varios_productos_cobro_mixto_caja_y_comprobante(self):
         """Verifica registro de venta, descuento de stock, cobro mixto, caja, comprobante e historial de precios."""

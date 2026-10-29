@@ -2,11 +2,11 @@
 
 **Sistema de Ventas e Inventario: Centro de Distribución a Locales**
 
-Versión documental actualizada: 22/10/2026. Base original: 11/10/2026. Las [decisiones de implementación](decisiones_implementacion.md) resuelven las dudas iniciales con opciones simples y prevalecen sobre las propuestas históricas. El [modelo de datos](modelo_datos.md) refleja el incremento ejecutable.
+Estado actualizado: 28/10/2026. Análisis original: 11/10/2026. Las [decisiones de implementación](decisiones_implementacion.md) resuelven las dudas iniciales y prevalecen sobre las propuestas históricas de las secciones siguientes. El [modelo de datos](modelo_datos.md) refleja el incremento ejecutable.
 
 ## 1. Alcance de esta entrega y fuentes
 
-Este documento conserva el análisis del enunciado, el modelo conceptual y la evaluación de patrones. El repositorio ya implementa catálogo, compra y logística con interfaz, SQLite 3, State y DAO; ventas, devoluciones y reportes completos continúan pendientes. Tampoco pretende cerrar el DER ni el diagrama de clases: esas etapas deberán desarrollarse sobre las decisiones revisadas aquí.
+Este documento conserva el análisis del enunciado, el modelo conceptual y la evaluación inicial de patrones. El repositorio implementa catálogo, compras, logística, costos, ventas, cobros, caja y comprobantes con interfaz y SQLite 3; aplica State, DAO y Singleton. Devoluciones y cuatro reportes no triviales continúan pendientes. Los diagramas de clases y DER implementados se mantienen en sus documentos específicos; las propuestas históricas de este análisis no sustituyen la cobertura verificada.
 
 ### Fuentes y prioridad
 
@@ -26,7 +26,7 @@ Los números de página del material complementario son los impresos, no la posi
 
 ### Estado del repositorio
 
-Actualización de integración: 12/10/2026. Este análisis se incorporó al repositorio local `G41_TPI_DAO_Sistema_Ventas_Inventario`, en la rama `codex/plan-avance-tp`. El proyecto contiene un incremento ejecutable de catálogo, compras recibidas y logística, además de módulos pendientes para ventas/reportes. El plan incremental se encuentra en [plan de avance](plan_avance.md).
+Integración original: 12/10/2026, rama `codex/plan-avance-tp`. El avance posterior `antigravity/paso1-y-singleton` agregó ventas y costos; las correcciones del 28/10 se encuentran en `codex/correcciones-costos-singleton`. El estado y los siguientes incrementos se mantienen en [plan de avance](plan_avance.md).
 
 Se conserva el contenido del análisis como propuesta revisable. El 12/10/2026 se leyeron las dos páginas de `dao/TPI-tema3.pdf` y se confirmó la correspondencia de R01-R17 con sus procesos, validaciones y mínimos de entrega. Los enlaces externos del análisis recibido no se volvieron a verificar. La aclaración del usuario de la misma fecha exige SQLite 3 y un frontend para mostrar el funcionamiento, con tecnología de interfaz a elección. El ejemplo local efectivamente revisado es el sistema de biblioteca de 2024 situado en `dao/TPI/TPI`; no debe confundirse con el ejemplo web de reservas de canchas citado en la tabla anterior.
 

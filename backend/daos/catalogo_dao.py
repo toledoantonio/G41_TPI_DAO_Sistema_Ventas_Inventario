@@ -91,7 +91,9 @@ class CatalogoDAO:
             raise ErrorDominio(f"Existencia insuficiente para el producto {producto_id}.")
         nuevo_costo = saldo["costo_centavos"]
         if costo_ingreso_centavos is not None and disponible > 0:
-            stock_valorizado = saldo["disponible"] + saldo["reservado"]
+            # La reserva ya tiene el costo fijo guardado en contenido_bulto.
+            # Una compra nueva solo promedia con las unidades aún disponibles.
+            stock_valorizado = saldo["disponible"]
             nuevo_costo = calcular_costo_promedio(
                 stock_valorizado, saldo["costo_centavos"], disponible, costo_ingreso_centavos
             )

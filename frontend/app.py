@@ -734,14 +734,14 @@ class Aplicacion:
                 ("rechazado", "Rechazado"),
                 ("minimo", "Mínimo"),
                 ("faltante", "Faltante"),
-                ("costo_centavos", "Costo prom."),
+                ("costo_centavos", "Costo prom. disp."),
                 ("valor_disponible_centavos", "Valor disp."),
             ],
         )
         self.inventario.pack(fill="both", expand=True)
         ttk.Label(
             panel,
-            text="Físico = disponible + reservado + pendiente + rechazado. Costo prom. se calcula por promedio ponderado y se transfiere al verificar bultos.",
+            text="Físico = disponible + reservado + pendiente + rechazado. El costo promedio corresponde al Disponible; lo reservado conserva el costo de cada bulto, consultable en su contenido.",
             wraplength=1000,
         ).pack(anchor="w", pady=10)
         self.refrescadores.extend(
