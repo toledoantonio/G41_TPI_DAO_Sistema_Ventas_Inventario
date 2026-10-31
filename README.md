@@ -26,7 +26,7 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
 - Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
 
-La interfaz utiliza Tkinter/ttk. Las devoluciones comerciales y los reportes restantes se abordarán en los siguientes incrementos.
+La aplicación está desarrollada en **Python**, con interfaz de escritorio **Tkinter/ttk** (`frontend/`) y persistencia en **SQLite 3**.
 
 ## Ejecución
 
