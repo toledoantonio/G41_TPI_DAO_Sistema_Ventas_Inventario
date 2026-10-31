@@ -108,3 +108,41 @@ class TestInterfaz:
         assert not cargar_demo(self.s)
         assert len(self.s.listar("compras")) == 1
         assert len(self.s.listar("bultos")) == 1
+
+    def test_devolucion_reportes_y_exportacion_desde_interfaz(self):
+        """Compra demo → logística → venta → devolución → cuatro reportes → CSV → reapertura."""
+        self.test_callbacks_logistica_venta_y_actualizacion_inventario()
+        vista = self.app.devoluciones_vista
+        vista.boton_cargar.invoke()
+        vista.originales.arbol.selection_set("0")
+        vista.detalle_form.variables["cantidad"].set("1")
+        vista.boton_agregar.invoke()
+        vista.formulario.variables["referencia"].set("DEV-UI-01")
+        vista.formulario.variables["motivo"].set("Retorno inspeccionado")
+        with patch("frontend.app.messagebox.showerror") as error:
+            vista.boton_confirmar.invoke()
+            error.assert_not_called()
+        devoluciones = self.s.listar("devoluciones")
+        assert len(devoluciones) == 1 and devoluciones[0]["total_centavos"] == 10000
+        assert next(f for f in self.app.inventario.filas.values() if f["ubicacion_id"] == devoluciones[0]["local_id"])["disponible"] == 8
+        reportes = self.app.reportes_vista
+        from backend.reports.generador_reportes import REPORTES
+
+        for tipo in REPORTES:
+            reportes.formulario.completar({"tipo": tipo, "desde": "", "hasta": "", "ubicacion": "TODAS", "medio": "TODOS"})
+            reportes.ajustar_filtros()
+            with patch("frontend.app.messagebox.showerror") as error:
+                reportes.boton_generar.invoke()
+                error.assert_not_called()
+            assert reportes.resultado["tipo"] == tipo
+            assert len(reportes.tablas) == len(reportes.resultado["secciones"])
+            ruta_csv = Path(self.temporal.name) / f"{tipo}.csv"
+            with patch("frontend.devoluciones_reportes.filedialog.asksaveasfilename", return_value=str(ruta_csv)):
+                reportes.exportar()
+            assert reportes.resultado["titulo"] in ruta_csv.read_text(encoding="utf-8-sig")
+        ruta = self.s.db.ruta
+        BaseDatos.reset_for_testing()
+        reabierto = Sistema(ruta)
+        assert reabierto.obtener_devolucion(devoluciones[0]["id"])["total_centavos"] == 10000
+        fila = reabierto.generar_reporte("ventas_ingresos")["secciones"][0]["filas"][0]
+        assert fila["neto_centavos"] == 20000

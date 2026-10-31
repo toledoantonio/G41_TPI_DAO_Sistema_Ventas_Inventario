@@ -2,11 +2,11 @@
 
 **Sistema de Ventas e Inventario: Centro de Distribución a Locales**
 
-Estado actualizado: 28/10/2026. Análisis original: 11/10/2026. Las [decisiones de implementación](decisiones_implementacion.md) resuelven las dudas iniciales y prevalecen sobre las propuestas históricas de las secciones siguientes. El [modelo de datos](modelo_datos.md) refleja el incremento ejecutable.
+Estado actualizado: 31/10/2026. Análisis original: 11/10/2026. Las [decisiones de implementación](decisiones_implementacion.md) resuelven las dudas iniciales y prevalecen sobre las propuestas históricas de las secciones siguientes. El [modelo de datos](modelo_datos.md) refleja el incremento ejecutable.
 
 ## 1. Alcance de esta entrega y fuentes
 
-Este documento conserva el análisis del enunciado, el modelo conceptual y la evaluación inicial de patrones. El repositorio implementa catálogo, compras, logística, costos, ventas, cobros, caja y comprobantes con interfaz y SQLite 3; aplica State, DAO y Singleton. Devoluciones y cuatro reportes no triviales continúan pendientes. Los diagramas de clases y DER implementados se mantienen en sus documentos específicos; las propuestas históricas de este análisis no sustituyen la cobertura verificada.
+Este documento conserva el análisis del enunciado, el modelo conceptual y la evaluación inicial de patrones. El repositorio implementa catálogo, compras, logística, costos, ventas, cobros, caja y comprobantes con interfaz y SQLite 3; aplica State, DAO y Singleton. Devoluciones vinculadas y cuatro reportes no triviales se incorporaron en `codex/devoluciones-reportes`; véanse cobertura verificada y reportes. Los diagramas de clases y DER implementados se mantienen en sus documentos específicos; las propuestas históricas de este análisis no sustituyen la cobertura verificada.
 
 ### Fuentes y prioridad
 

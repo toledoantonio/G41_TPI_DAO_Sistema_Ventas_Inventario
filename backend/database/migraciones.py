@@ -18,9 +18,9 @@ def migrar_costos(cx):
     costos se conservan en el contenido de cada bulto.
     """
     version = cx.execute("PRAGMA user_version").fetchone()[0]
-    if version > 1:
+    if version > 2:
         raise ValueError("La base pertenece a una versión más reciente de la aplicación.")
-    if version == 1:
+    if version >= 1:
         return
 
     faltantes = set()

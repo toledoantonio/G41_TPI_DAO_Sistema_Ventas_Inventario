@@ -1,6 +1,6 @@
-# Modelo de datos implementado: catálogo, logística y ventas
+# Modelo de datos implementado: catálogo, logística, ventas y devoluciones
 
-SQLite 3. Revisión del 27/10/2026. Fuente ejecutable: [esquema SQL](../backend/database/esquema.sql). Decisiones: [reglas adoptadas](decisiones_implementacion.md).
+SQLite 3. Revisión del 31/10/2026. Fuente ejecutable: [esquema SQL](../backend/database/esquema.sql). Decisiones: [reglas adoptadas](decisiones_implementacion.md).
 
 ## DER lógico con atributos y claves
 
@@ -163,6 +163,27 @@ erDiagram
     VENTA ||--|{ COBRO : recibe
     VENTA ||--|| COMPROBANTE : documenta
     UBICACION ||--o{ MOVIMIENTO_CAJA : opera_caja
+    DEVOLUCION {
+        int id PK
+        string referencia UK
+        int venta_id FK
+        int local_id FK
+        string motivo
+        string medio_reintegro
+        string fecha
+        int total_centavos
+    }
+    DETALLE_DEVOLUCION {
+        int id PK
+        int devolucion_id FK
+        int detalle_venta_id FK
+        int cantidad
+        string condicion
+    }
+    VENTA ||--o{ DEVOLUCION : origen
+    UBICACION ||--o{ DEVOLUCION : reintegra
+    DEVOLUCION ||--|{ DETALLE_DEVOLUCION : contiene
+    DETALLE_VENTA ||--o{ DETALLE_DEVOLUCION : limita
 ```
 
 ## Datos y restricciones
@@ -193,10 +214,19 @@ Fuente editable del diagrama: [der.mmd](diagramas/der.mmd).
 
 ## Migración de costos
 
-La versión económica se identifica con `PRAGMA user_version = 1`. Las bases previas no tenían versión (`0`). La creación del esquema, columnas faltantes, reconstrucción y cambio de versión se confirman juntos bajo `BEGIN IMMEDIATE`. Si falla una comprobación, se revierten todos esos cambios y se puede reintentar después de conciliar el respaldo. Una versión superior se rechaza para evitar abrirla con código anterior.
+El esquema actual usa `PRAGMA user_version = 2` e incorpora las tablas de devoluciones, índice por detalle original y trigger de pertenencia/cantidad. La versión económica 1 se conserva como paso previo; al actualizar de 1 a 2 no se reconstruyen costos ni se alteran ventas. Las bases nuevas o de versión 0 completan ambos pasos en la transacción de apertura. Las bases previas no tenían versión (`0`). La creación del esquema, columnas faltantes, reconstrucción y cambio de versión se confirman juntos bajo `BEGIN IMMEDIATE`. Si falla una comprobación, se revierten todos esos cambios y se puede reintentar después de conciliar el respaldo. Una versión superior se rechaza para evitar abrirla con código anterior.
 
 La reconstrucción recorre `movimiento_inventario` por su id global, no por fecha: compra → preparación → despacho → recepción → verificación/rechazo → venta. Cada compra aporta su costo histórico; al preparar se apartan unidades del promedio Disponible y se fija el costo del bulto. Las bases que no tenían la columna de costo del contenido la completan a partir de esa secuencia. Al verificar, el costo del bulto se promedia con el Disponible del local; un rechazo no habilita unidades ni altera ese promedio.
 
 Si la base ya tenía costos de bultos y ventas registrados, se respetan esos históricos, incluso valores cero. Las diferencias entre salidas históricas y promedio reconstruido se asignan al stock Disponible remanente. No se recalculan márgenes de ventas pasadas ni se inventan costos faltantes. Si el valor restante es negativo o existe una diferencia significativa sin unidades remanentes, se informa que hace falta conciliación y se revierte la migración. Una base ya migrada por versiones anteriores con costos cero requiere revisar esos documentos: cero no permite distinguir por sí solo mercadería gratuita de un dato económico perdido.
 
 Se contrastan movimientos con sus documentos y con los cuatro saldos por ubicación/producto. No se modifican cantidades, mínimos, comprobantes, caja ni historial de estados. La migración se ejecuta una sola vez; las siguientes aperturas conservan los costos operados. Los promedios unitarios se redondean a centavos con `ROUND_HALF_UP`, por lo que puede haber diferencias de redondeo al valorizar muchas unidades.
+
+## Documentos de devolución
+
+| Tabla | Datos y restricciones |
+| --- | --- |
+| `devolucion` | id, referencia única, venta/local FK, motivo, medio de reintegro, fecha y total en centavos no negativo. |
+| `detalle_devolucion` | id, devolución y detalle de venta FK, cantidad positiva y condición VENDIBLE/NO_VENDIBLE. Único por devolución/detalle/condición; índice por detalle original. |
+
+El trigger de inserción exige pertenencia a la venta/local y acumulado no superior al vendido; el servicio valida lo mismo bajo BEGIN IMMEDIATE. Precio y costo se recuperan del detalle de venta histórico. Una devolución puede registrar dos condiciones del mismo producto y produce un único movimiento de inventario por producto, con ambos deltas. El egreso de caja usa causa DEVOLUCION y referencia al documento; si el total es cero, no se inserta egreso. No se editan ni eliminan documentos confirmados desde la aplicación.

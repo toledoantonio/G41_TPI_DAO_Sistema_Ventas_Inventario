@@ -1,6 +1,6 @@
 # Diagrama de clases implementadas
 
-Revisión del 27/10/2026 contra los módulos Python. Muestra las clases del dominio orientadas a objetos, sus relaciones de herencia, composición, patrones (`State`, `Singleton` y `DAO`) y dependencias existentes.
+Revisión del 31/10/2026 contra los módulos Python. Muestra las clases del dominio orientadas a objetos, sus relaciones de herencia, composición, patrones (`State`, `Singleton` y `DAO`) y dependencias existentes.
 
 ## Capas, dominio y colaboración
 
@@ -18,6 +18,8 @@ classDiagram
         preparar_bulto(orden_id, numero_remito, detalles)
         verificar(bulto_id, local_id, precinto_observado, roto, observacion)
         registrar_venta(local_id, detalles, cobros, numero_comprobante)
+        registrar_devolucion(venta_id, local_id, detalles, medio, motivo, referencia)
+        generar_reporte(tipo, desde, hasta, ubicacion_id, medio_pago)
         _operacion()
     }
     class BaseDatos {
@@ -205,6 +207,51 @@ classDiagram
     ProductoDAO ..> Producto : recibe
     BultoDAO ..> Bulto : reconstruye
     VentaDAO ..> Venta : persiste y reconstruye
+    class Devolucion {
+        venta_id
+        local_id
+        referencia
+        motivo
+        medio_reintegro
+        fecha
+        detalles
+        total_centavos
+        agregar_detalle(original, cantidad, condicion)
+        validar()
+    }
+    class DetalleDevolucion {
+        detalle_venta_id
+        producto_id
+        cantidad
+        condicion
+        costo_unitario_centavos
+        reintegro_centavos
+    }
+    class DevolucionDAO {
+        originales(venta_id)
+        crear(devolucion)
+        guardar_detalle(devolucion_id, detalle)
+        obtener(identificador)
+    }
+    class ReportesDAO {
+        consultar(tipo, parametros)
+    }
+    class GeneradorReportes {
+        generar(tipo, desde, hasta, ubicacion_id, medio_pago)
+    }
+    class VistaDevoluciones
+    class VistaReportes
+    Devolucion "1" *-- "1..*" DetalleDevolucion : contiene
+    Devolucion --> Venta : vinculada a
+    DetalleDevolucion --> DetalleVenta : original
+    Sistema ..> Devolucion : coordina
+    Sistema ..> DevolucionDAO
+    Sistema ..> GeneradorReportes
+    GeneradorReportes ..> ReportesDAO
+    Aplicacion *-- VistaDevoluciones
+    Aplicacion *-- VistaReportes
+    VistaDevoluciones --> Sistema
+    VistaReportes --> Sistema
 ```
 
 `BaseDatos` implementa el patrón **Singleton** según GoF (Cap. 15.3), almacenando su instancia única en `_instance`, controlando la instanciación mediante `__new__` y la inicialización única mediante `_initialized`, además de exponer `reset_for_testing()` (Cap. 15.5.2).
@@ -265,3 +312,5 @@ classDiagram
 `EstadoBulto` hereda de `ABC` (`abc.ABC`) y define la propiedad abstracta `@abstractmethod def nombre(self)`, impidiendo su instanciación directa (Cap. 11.2). Cada estado concreto habilitado recibe al contexto (`Bulto`) como argumento e invoca `contexto.cambiar_estado(SiguienteEstado())` (Cap. 16.2).
 
 Fuentes editables: [clases.mmd](diagramas/clases.mmd) y [state_clases.mmd](diagramas/state_clases.mmd). Véanse también [ciclo del bulto](ciclo_bulto.md), [secuencia de verificación](secuencia_verificacion.md) y [justificación de patrones](patrones.md).
+
+Devoluciones: `backend/models/devoluciones.py` define el documento y sus detalles, sin SQL. `DevolucionDAO` recupera originales y acumulados; `Sistema.registrar_devolucion` coordina validaciones, stock y caja. `ReportesDAO` agrega datos; `GeneradorReportes` valida filtros y prepara secciones; `exportar_csv` serializa el resultado. Las vistas de ambos procesos se encuentran en `frontend/devoluciones_reportes.py`. Se conservan tres patrones, sin añadir abstracciones para aumentar el conteo.

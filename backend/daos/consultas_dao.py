@@ -3,6 +3,9 @@
 from backend.patterns.estados_bulto import ErrorDominio
 
 CONSULTAS = {
+    "devoluciones": """SELECT d.*, u.nombre AS local, c.numero AS comprobante
+                       FROM devolucion d JOIN ubicacion u ON u.id = d.local_id
+                       JOIN comprobante c ON c.venta_id = d.venta_id ORDER BY d.id DESC""",
     "ubicaciones": "SELECT * FROM ubicacion ORDER BY tipo, codigo",
     "categorias": "SELECT * FROM categoria ORDER BY nombre",
     "proveedores": "SELECT * FROM proveedor ORDER BY codigo",

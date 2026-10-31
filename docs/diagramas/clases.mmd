@@ -11,6 +11,8 @@ classDiagram
         preparar_bulto(orden_id, numero_remito, detalles)
         verificar(bulto_id, local_id, precinto_observado, roto, observacion)
         registrar_venta(local_id, detalles, cobros, numero_comprobante)
+        registrar_devolucion(venta_id, local_id, detalles, medio, motivo, referencia)
+        generar_reporte(tipo, desde, hasta, ubicacion_id, medio_pago)
         _operacion()
     }
     class BaseDatos {
@@ -198,3 +200,48 @@ classDiagram
     ProductoDAO ..> Producto : recibe
     BultoDAO ..> Bulto : reconstruye
     VentaDAO ..> Venta : persiste y reconstruye
+    class Devolucion {
+        venta_id
+        local_id
+        referencia
+        motivo
+        medio_reintegro
+        fecha
+        detalles
+        total_centavos
+        agregar_detalle(original, cantidad, condicion)
+        validar()
+    }
+    class DetalleDevolucion {
+        detalle_venta_id
+        producto_id
+        cantidad
+        condicion
+        costo_unitario_centavos
+        reintegro_centavos
+    }
+    class DevolucionDAO {
+        originales(venta_id)
+        crear(devolucion)
+        guardar_detalle(devolucion_id, detalle)
+        obtener(identificador)
+    }
+    class ReportesDAO {
+        consultar(tipo, parametros)
+    }
+    class GeneradorReportes {
+        generar(tipo, desde, hasta, ubicacion_id, medio_pago)
+    }
+    class VistaDevoluciones
+    class VistaReportes
+    Devolucion "1" *-- "1..*" DetalleDevolucion : contiene
+    Devolucion --> Venta : vinculada a
+    DetalleDevolucion --> DetalleVenta : original
+    Sistema ..> Devolucion : coordina
+    Sistema ..> DevolucionDAO
+    Sistema ..> GeneradorReportes
+    GeneradorReportes ..> ReportesDAO
+    Aplicacion *-- VistaDevoluciones
+    Aplicacion *-- VistaReportes
+    VistaDevoluciones --> Sistema
+    VistaReportes --> Sistema

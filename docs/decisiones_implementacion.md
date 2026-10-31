@@ -1,12 +1,12 @@
 # Decisiones de implementación
 
-Actualizado: 28/10/2026. El usuario indicó resolver las dudas con alternativas simples, basadas en el dominio de la consigna, sin esperar aclaraciones docentes. Estas decisiones reemplazan las propuestas incompatibles del análisis del 12/10. No se atribuyen al profesor.
+Actualizado: 31/10/2026. El usuario indicó resolver las dudas con alternativas simples, basadas en el dominio de la consigna, sin esperar aclaraciones docentes. Estas decisiones reemplazan las propuestas incompatibles del análisis del 12/10. No se atribuyen al profesor.
 
 ## Alcance del incremento implementado
 
 Aplicación de escritorio Python con Tkinter y SQLite 3, sin dependencias externas de ejecución. Implementa alta y modificación de catálogo/ubicaciones, mínimos, compra recibida, pedido por local, preparación, precintado, despacho, recepción, verificación/rechazo e inventario consultable. Hay varios productos por compra, orden y bulto; los renglones repetidos se consolidan antes de validar cantidades.
 
-También se implementaron ventas de varios productos, cobros simples o mixtos, caja y comprobantes internos; precio y costo históricos quedan conservados por detalle. La operación completa se confirma o revierte junta. El inventario Disponible se valoriza por promedio ponderado, y las transferencias conservan el costo fijo de preparación del bulto. Devoluciones y cuatro reportes no triviales siguen pendientes; el TP aún no está terminado.
+También se implementaron ventas de varios productos, cobros simples o mixtos, caja y comprobantes internos; precio y costo históricos quedan conservados por detalle. La operación completa se confirma o revierte junta. El inventario Disponible se valoriza por promedio ponderado, y las transferencias conservan el costo fijo de preparación del bulto. Devoluciones vinculadas a ventas y cuatro reportes no triviales están implementados y probados desde la interfaz; resta la revisión humana de la entrega.
 
 ## Reglas adoptadas
 
@@ -26,7 +26,7 @@ También se implementaron ventas de varios productos, cobros simples o mixtos, c
 | Patrones | State, DAO y Singleton aplicados | State delega en seis estados concretos; DAO separa SQL. Singleton conserva un gestor por proceso, con ruta fija y conexión independiente por operación. |
 | D18 / Costos | Promedio ponderado del Disponible, redondeado al centavo | Preparar retira unidades del conjunto que se promedia. Reservado, Pendiente, En tránsito y Rechazado conservan el costo del contenido del bulto. Comprar no revaloriza esas unidades. Verificar incorpora su costo al promedio Disponible del local. |
 
-La venta exige pago completo y emite un comprobante interno; los medios de pago se registran sin pasarela. Próximo incremento: devolución vinculada al detalle original, en el mismo local, con cantidades acumuladas controladas y reintegro al precio original. Sin plazo arbitrario agregado por el sistema: la política base validará origen, cantidad y condición de mercadería. La vendibilidad se inspeccionará independientemente del reintegro. La devolución todavía no está programada.
+La venta exige pago completo y emite un comprobante interno; los medios de pago se registran sin pasarela. La devolución está vinculada al detalle original, en el mismo local, con cantidades acumuladas controladas y reintegro al precio original. Sin plazo arbitrario agregado por el sistema: la política base valida origen, cantidad y condición de mercadería. La vendibilidad se inspecciona independientemente del reintegro. Cada devolución requiere motivo y referencia única para evitar reintentos duplicados. Se permite elegir el medio de reintegro sin pasarela, sin imponer que coincida con los cobros mixtos originales. Un retorno de precio cero no genera un egreso ficticio.
 
 Las bases anteriores reconstruyen costos mediante una migración versionada y transaccional desde documentos y movimientos. No se reescriben ventas ni costos de bultos ya registrados; si no hay respaldo suficiente se revierte la migración. Los límites y el tratamiento de históricos están detallados en [modelo de datos](modelo_datos.md#migración-de-costos).
 
@@ -36,10 +36,16 @@ Las bases anteriores reconstruyen costos mediante una migración versionada y tr
 - Estado, historial, remito, saldos y movimientos se confirman o revierten en una misma transacción.
 - State rechaza saltos y repeticiones; repetir despacho/recepción/verificación no agrega otro movimiento.
 - Compra repetida, precinto repetido, producto/proveedor duplicado, origen/destino equivocado y sobreasignación se rechazan.
-- Disponible del local solo aumenta cuando **bulto y remito** están Verificados. Recibido queda Pendiente; Rechazado no se vende.
+- El ingreso logístico a Disponible exige **bulto y remito** Verificados. Recibido queda Pendiente; Rechazado no se vende. Una devolución comercial inspeccionada como vendible puede reingresar a Disponible con vínculo a su venta original.
 - Los mínimos se consultan también con saldo cero. Los movimientos explican las variaciones de cada condición de inventario.
 - La venta consolida cantidades, no supera Disponible y exige cobros por el total exacto. Un comprobante duplicado revierte venta, stock y caja.
 - Una compra entre preparación y despacho mantiene el costo de lo reservado. Se verifica conservación de valor con datos conocidos, respetando el redondeo unitario a centavos.
 - La migración conserva saldos e historial, revierte cambios ante inconsistencias y no se repite al reabrir. El Singleton rechaza otra ruta y serializa la inicialización concurrente.
 
 La inmutabilidad exigida es del historial de estados en la aplicación y la base local; no se añade un sistema de auditoría criptográfica ni permisos de usuarios.
+
+## Devoluciones y reportes (31/10/2026)
+
+La devolución acepta varios detalles y condiciones; consolida repetidos y controla el acumulado, incluidas operaciones concurrentes. El stock vendible reingresa al costo original y se promedia con el Disponible actual. NO_VENDIBLE ingresa a Rechazado con causa DEVOLUCION; se distingue del rechazo logístico por su documento y causa. No se implementa recuperación ni destrucción automática. El reintegro, documento y stock se confirman juntos.
+
+Los reportes usan fecha real de cada evento, fechas inclusivas y una instantánea de lectura para todas las secciones. El margen solo revierte costo si vuelve mercadería vendible. No se agregan gastos ni integración fiscal. Definiciones, filtros y exportación: [reportes](reportes.md). El esquema pasa a versión 2 para incorporar devoluciones; las bases de versión 1 conservan sus costos sin repetir la reconstrucción económica.

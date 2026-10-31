@@ -91,7 +91,7 @@ def test_migracion_reconstruye_compras_reservas_y_verificacion(datos):
     assert s.historial_bulto(bulto) == historial
     assert sum(f["valor_disponible_centavos"] for f in s.listar("inventario")) == 240000
     with s.db.conectar() as cx:
-        assert cx.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert cx.execute("PRAGMA user_version").fetchone()[0] == 2
     # La segunda apertura no vuelve a migrar ni modifica los costos históricos.
     BaseDatos.reset_for_testing()
     s = Sistema(ruta)
@@ -216,7 +216,7 @@ def test_inicializaciones_concurrentes_comparten_gestor(tmp_path):
         barrera.wait(timeout=5)
         db = BaseDatos(ruta)
         with db.conectar() as cx:
-            assert cx.execute("PRAGMA user_version").fetchone()[0] == 1
+            assert cx.execute("PRAGMA user_version").fetchone()[0] == 2
         return db
 
     try:

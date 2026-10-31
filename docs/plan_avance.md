@@ -1,6 +1,6 @@
 # Plan del trabajo práctico
 
-Actualizado: 28/10/2026. Rama: `codex/correcciones-costos-singleton`, basada en `antigravity/paso1-y-singleton`.
+Actualizado: 31/10/2026. Rama: `codex/devoluciones-reportes`, basada en `main`, que integra Antigravity y las correcciones anteriores.
 
 ## Criterios confirmados
 
@@ -32,9 +32,9 @@ Documentación vigente:
 | Orden | Trabajo | Estado / Criterio de cierre |
 | --- | --- | --- |
 | 1 | Costo de inventario y transferencia, venta con varios productos, cobro y comprobante interno | **Completado.** Precio/costo histórico conservados; cantidades agregadas no superan Disponible; detalle, stock, caja y comprobante se confirman juntos; frontend permite demostrarlo. |
-| 2 | Devolución vinculada a venta y detalle original | **Pendiente.** Cantidades acumuladas controladas, reintegro al precio original y condición de mercadería diferenciada; stock/caja se actualizan juntos. |
-| 3 | Cuatro reportes no triviales | **Pendiente.** Ventas/ingresos por período/local/medio, ranking y margen, existencias/mínimos y rechazos por precinto; agregaciones contrastadas con datos conocidos. |
-| 4 | Revisión final y recorrido integral | **Pendiente.** Demostración compra → reposición → recepción → venta → devolución → reportes desde frontend con persistencia tras reiniciar. |
+| 2 | Devolución vinculada a venta y detalle original | **Implementado y probado.** Acumulados, consolidación, mismo local, precio/costo original, condición diferenciada, referencia única y stock/caja atómicos. Pestaña 7. |
+| 3 | Cuatro reportes no triviales | **Implementado y probado.** Filtros, agregaciones y CSV contrastados con datos conocidos. Pestaña 8 y [definiciones](reportes.md). |
+| 4 | Revisión final y recorrido integral | **Recorrido automatizado verificado:** demo con compra → logística → venta → devolución → cuatro reportes/CSV → reapertura. Pendiente revisión humana de entrega y ensayo de exposición del grupo. |
 
 ## Segunda parte
 

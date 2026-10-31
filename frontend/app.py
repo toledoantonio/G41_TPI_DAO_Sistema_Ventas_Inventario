@@ -345,7 +345,7 @@ class Aplicacion:
     def __init__(self, raiz, sistema):
         self.raiz, self.sistema = raiz, sistema
         self.refrescadores = []
-        raiz.title("G41 · Ventas e inventario — Catálogo, logística y ventas")
+        raiz.title("G41 · Ventas e inventario")
         raiz.geometry("1220x820")
         raiz.minsize(1020, 720)
         estilo = ttk.Style(raiz)
@@ -371,6 +371,12 @@ class Aplicacion:
         self.crear_logistica()
         self.crear_inventario()
         self.crear_ventas()
+        from frontend.devoluciones_reportes import VistaDevoluciones, VistaReportes
+
+        self.devoluciones_vista = VistaDevoluciones(self.panel("7. Devoluciones"), self)
+        self.devoluciones_vista.pack(fill="both", expand=True)
+        self.reportes_vista = VistaReportes(self.panel("8. Reportes"), self)
+        self.reportes_vista.pack(fill="both", expand=True)
         self.actualizar()
 
     def opciones(self, consulta, tipo=None):
@@ -405,7 +411,7 @@ class Aplicacion:
             refrescar()
 
     def crear_catalogo(self):
-        panel = self.panel("1. Administración")
+        panel = self.panel("1. Catálogo")
         sub = ttk.Notebook(panel)
         sub.pack(fill="both", expand=True)
         especificaciones = [
@@ -471,7 +477,7 @@ class Aplicacion:
             self.editores[consulta] = editor
 
     def crear_compras(self):
-        panel = self.panel("2. Compras recibidas")
+        panel = self.panel("2. Compras")
         ttk.Label(
             panel, text="Registrar mercadería recibida y aceptada en el CD. Actualiza el costo promedio ponderado."
         ).pack(anchor="w")
@@ -610,7 +616,7 @@ class Aplicacion:
         )
 
     def crear_logistica(self):
-        panel = self.panel("4. Bultos y remitos")
+        panel = self.panel("4. Logística")
         ttk.Label(
             panel,
             text="Seleccione un bulto. Secuencia: Preparado → Precintado → En tránsito → Recibido → Verificado / Rechazado.",
@@ -710,7 +716,7 @@ class Aplicacion:
         )
 
     def crear_inventario(self):
-        panel = self.panel("5. Inventario y mínimos")
+        panel = self.panel("5. Inventario")
         self.minimo_form = Formulario(
             panel,
             [
