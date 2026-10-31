@@ -1,0 +1,43 @@
+classDiagram
+    class Bulto {
+        -_id : int
+        -_precinto : str
+        -_estado : EstadoBulto
+        -_contenido : list
+        +cambiar_estado(nuevo_estado)
+        +agregar_contenido(producto_id, cantidad)
+        +precintar(valor)
+        +despachar()
+        +recibir()
+        +verificar(precinto_observado, roto)
+    }
+    class EstadoBulto {
+        <<abstract>>
+        +nombre : str
+        +precintar(contexto)
+        +despachar(contexto)
+        +recibir(contexto)
+        +verificar(contexto, roto)
+        #_rechazar(accion)
+    }
+    class Preparado {
+        +precintar(contexto)
+    }
+    class Precintado {
+        +despachar(contexto)
+    }
+    class EnTransito {
+        +recibir(contexto)
+    }
+    class Recibido {
+        +verificar(contexto, roto)
+    }
+    class Verificado
+    class Rechazado
+    Bulto "1" o-- "1" EstadoBulto : estado actual
+    EstadoBulto <|-- Preparado
+    EstadoBulto <|-- Precintado
+    EstadoBulto <|-- EnTransito
+    EstadoBulto <|-- Recibido
+    EstadoBulto <|-- Verificado
+    EstadoBulto <|-- Rechazado

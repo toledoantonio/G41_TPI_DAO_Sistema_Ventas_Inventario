@@ -1,47 +1,80 @@
 # G41 - TPI - Sistema de Ventas e Inventario
 
-Este README deja constancia del Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos** del **grupo 41**, correspondiente al año **2026**. La documentación se irá incorporando según las actividades propuestas por la cátedra, con los enlaces y las imágenes de los diagramas requeridos.
+Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Ingeniería en Sistemas de Información. **Grupo 41 — 2026**. Tema 3: Sistema de Ventas e Inventario, Centro de Distribución a Locales.
 
-Trabajo Práctico Integrador 2026 de Desarrollo de Aplicaciones con Objetos, Ingeniería en Sistemas de Información. Tema 3: Centro de Distribución a Locales.
+## Análisis del dominio
 
-## Estado inicial
+[Entidades, relaciones, reglas de negocio y modelo conceptual](docs/analisis_dominio.md).
 
-Este repositorio contiene la estructura inicial del proyecto. Los módulos Python son marcadores de lugar; todavía no se implementaron funcionalidades ni se eligieron el framework del frontend o el motor de base de datos.
+- [Casos de uso de los procesos obligatorios](docs/casos_uso.md).
+- [Modelo conceptual del dominio](docs/modelo_conceptual.md).
+- [Diagrama de clases implementadas](docs/modelo_clases.md).
+- [DER con atributos, claves y cardinalidades](docs/modelo_datos.md).
+- [Ciclo de vida del bulto](docs/ciclo_bulto.md).
+- [Secuencia de verificación](docs/secuencia_verificacion.md).
+- [Patrones aplicados y ubicación en el código](docs/patrones.md).
+- [Cobertura de requisitos obligatorios](docs/alcance_verificado.md).
 
-## Estructura
+## Funcionalidades implementadas
 
-```text
-frontend/                       Interfaz de usuario (tecnología pendiente)
-backend/
-├── daos/                       Acceso y persistencia de datos
-│   ├── bulto_dao.py
-│   ├── producto_dao.py
-│   └── venta_dao.py
-├── database/
-│   └── config.py               Configuración de la base de datos
-├── models/
-│   └── entidades.py            Entidades del dominio
-├── patterns/                   Patrones de diseño
-├── reports/
-│   └── generador_reportes.py    Reportes del sistema
-└── main.py                     Punto de entrada
+- Alta y modificación de locales, Centro de Distribución, categorías, productos, precios y proveedores.
+- Mínimos por producto y ubicación, con consulta de faltantes incluso cuando el saldo es cero.
+- Compras recibidas en el CD con varios productos, costos históricos y cálculo de **costo promedio ponderado**.
+- Órdenes de reposición por local, con productos consolidados y atención parcial.
+- Preparación de bultos con reserva de stock, captura de costo de transferencia, un remito por bulto y precinto único.
+- Despacho, recepción, verificación o rechazo, con historial inmutable, transferencia de costo promedio al local y patrón **State**.
+- **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
+- Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
+
+La aplicación está desarrollada en **Python**, con interfaz de escritorio **Tkinter/ttk** (`frontend/`) y persistencia en **SQLite 3**.
+
+## Ejecución
+
+Requiere Python 3.10 o superior con Tkinter y SQLite 3 (incluidos en la instalación habitual de Python para Windows). Ejecutar desde la raíz del repositorio:
+
+```powershell
+python -m backend.main
 ```
 
-## Alcance del enunciado
+Los datos se guardan en `data/inventario.sqlite3`. Para utilizar datos ficticios en una base separada:
 
-- Administrar locales y Centro de Distribución.
-- Administrar productos, categorías, precios, mínimos de existencia y proveedores.
-- Consolidar necesidades de locales en órdenes de reposición con origen y destino.
-- Preparar bultos con remito y precinto, registrar su despacho y recibirlos verificando el precinto.
-- Registrar ventas, cobros, comprobantes y devoluciones con impacto en stock y caja.
+```powershell
+python -m backend.main --demo
+```
 
-### Reglas principales
+En Windows se puede abrir **iniciar.cmd** con doble clic para usar la base normal, o **demo.cmd** para usar la demostración. Desde PowerShell:
 
-- El stock del destino solo queda disponible cuando el remito y el contenedor están verificados. Un precinto roto implica rechazo y no habilita la venta.
-- Mantener trazabilidad inmutable de los estados del bulto: Preparado, Precintado, En tránsito, Recibido y Verificado/Rechazado.
-- No vender por encima del stock disponible y verificado.
-- Evitar productos y proveedores duplicados según los identificadores definidos.
-- Validar que las devoluciones correspondan a ventas registradas y cumplan las reglas establecidas.
+```powershell
+.\iniciar.cmd --demo
+```
+
+Para probar el flujo completo:
+1. En **4. Bultos y remitos** seleccionar el bulto, despacharlo y recibirlo en Local Centro (mantiene 10 unidades pendientes y cero disponibles).
+2. Introducir `PRECINTO-DEMO-01` y verificar: bulto y remito quedan Verificados y las 10 unidades pasan a Disponible en el local con su costo promedio transferido.
+3. En **6. Ventas y caja** seleccionar Local Centro, agregar productos, registrar el cobro (o usar *Saldar resto con medio seleccionado*) y confirmar la venta para emitir el comprobante interno y actualizar stock y caja.
+
+## Verificación
+
+Instalar la dependencia de pruebas (la aplicación no requiere paquetes externos):
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest -v
+```
+
+Las pruebas están escritas con `pytest` (Cap. 12) usando bases temporales y verifican modelos de dominio (encapsulamiento, composición, herencia, clases abstractas `ABC` y patrón `Singleton`), persistencia, costos promedio ponderados, ventas, cobros, comprobantes, historial, estados, rechazo, duplicados, sobreasignación, transacciones, concurrencia y formularios de interfaz.
+
+El costo promedio mostrado corresponde al **Disponible**. Los bultos conservan su costo desde la preparación; una compra posterior no revaloriza lo reservado. Los promedios se redondean al centavo con `ROUND_HALF_UP`.
+
+Al abrir una base anterior se reconstruyen los costos desde compras y movimientos registrados, en una migración transaccional y versionada. Se conservan cantidades y documentos históricos. Si faltan respaldos o los saldos no coinciden, la apertura informa el problema y revierte la migración; véanse los [criterios de migración](docs/modelo_datos.md#migración-de-costos).
+
+## Patrones de diseño
+
+- **State (Cap. 16.2):** `Bulto` delega sus acciones en `EstadoBulto(ABC)` y sus seis estados concretos. Cada estado determina la transición válida e invoca `contexto.cambiar_estado(...)` o rechaza la operación.
+- **Singleton (Cap. 15.3):** `BaseDatos` garantiza una única instancia del gestor de conexiones y transacciones SQLite mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()`.
+- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
+
+La [justificación técnica](docs/patrones.md) identifica participantes, archivos y pruebas.
 
 ### Integrantes del grupo
 

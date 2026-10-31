@@ -25,6 +25,10 @@ coverage/
 *.sqlite
 *.sqlite3
 *.log
+tmp/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Sistema operativo
 .DS_Store
