@@ -1,6 +1,6 @@
 # Patrones aplicados
 
-Revisión contra el código del 27/10/2026. Se encuentran aplicados **tres patrones**: **State** (GoF), **Singleton** (GoF) y **DAO** (acceso a datos). Con ello se cumple holgadamente el requisito obligatorio de aplicar al menos dos patrones de diseño y el objetivo de tres patrones planteado por el grupo.
+Revisión contra el código del 31/10/2026. Se encuentran aplicados **tres patrones**: **State** (GoF), **Singleton** (GoF) y **DAO** (acceso a datos). Con ello se cumple holgadamente el requisito obligatorio de aplicar al menos dos patrones de diseño y el objetivo de tres patrones planteado por el grupo.
 
 Material complementario revisado: [referencias de cátedra](referencias_catedra.md). Tanto la clase abstracta `EstadoBulto(ABC)` y la transición mediante `contexto.cambiar_estado(...)` (Cap. 11.2 y Cap. 16.2) como la implementación de `BaseDatos` mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()` (Cap. 15.3 y Cap. 15.5.2) siguen la estructura de las guías docentes.
 
@@ -42,6 +42,8 @@ La configuración es única **por proceso**. Las rutas se expanden y resuelven a
 | [CatalogoDAO](../backend/daos/catalogo_dao.py) | Accede a ubicaciones, categorías, proveedores, mínimos y movimientos/saldos con cálculo de costo promedio ponderado. |
 | [OperacionesDAO](../backend/daos/operaciones_dao.py) | Persiste compras, órdenes, remitos y contenido; consulta cantidades por asignar. |
 | [VentaDAO](../backend/daos/venta_dao.py) | Persiste y reconstruye ventas, detalles históricos de venta, cobros, comprobantes y movimientos de caja. |
+| [DevolucionDAO](../backend/daos/devolucion_dao.py) | Originales, acumulados y documentos de devolución. |
+| [ReportesDAO](../backend/daos/reportes_dao.py) | Consultas agregadas de los cuatro reportes sobre una instantánea compartida. |
 | [ConsultasDAO](../backend/daos/consultas_dao.py) | Ejecuta lecturas para las tablas de la interfaz. |
 
 `Sistema` abre una operación mediante el Singleton `BaseDatos` y entrega la misma conexión transaccional a los DAOs participantes. Ningún DAO hace commit por su cuenta.

@@ -1,8 +1,8 @@
 # Casos de uso de los procesos obligatorios
 
-Versión 0.2, 22/10/2026. Catálogo, compra y logística implementados. Ventas, devoluciones y reportes completos siguen pendientes. Las [decisiones adoptadas](decisiones_implementacion.md) reemplazan las dudas iniciales. Referencias R, D y A: [análisis de dominio](analisis_dominio.md). Actores operativos inferidos; no implican autenticación ni perfiles de usuario.
+Actualizado: 31/10/2026. Catálogo, compras, logística, ventas, devoluciones y cuatro reportes implementados. Las [decisiones adoptadas](decisiones_implementacion.md) reemplazan las dudas iniciales. Referencias R, D y A: [análisis de dominio](analisis_dominio.md). Actores operativos inferidos; no implican autenticación ni perfiles de usuario.
 
-Las políticas señaladas como propuestas siguen pendientes de validación. Los errores no deben dejar operaciones parcialmente registradas. SQLite 3, frontend y State están confirmados; cada caso describe comportamiento del dominio; el README identifica las funcionalidades efectivamente implementadas.
+Las propuestas históricas se interpretan según las decisiones de implementación vigentes. Los errores no deben dejar operaciones parcialmente registradas. SQLite 3, frontend y State están confirmados; cada caso describe comportamiento del dominio; el README identifica las funcionalidades efectivamente implementadas.
 
 ## Correspondencia con la consigna
 
@@ -45,7 +45,7 @@ Las políticas señaladas como propuestas siguen pendientes de validación. Los 
 - **Precondiciones:** proveedor, productos y CD registrados; mercadería efectivamente recibida y aceptada.
 - **Flujo:** ingresar detalles, validar cantidades positivas y costos, calcular importe, confirmar compra y entrada al inventario del CD en una transacción.
 - **Errores:** cantidades inválidas, referencias inexistentes, registro repetido o fallo al guardar movimientos; no producir entrada parcial ni duplicada.
-- **Resultado:** compra trazada con costos históricos y stock del CD aumentado una vez. Propuesta: actualizar costo promedio ponderado, pendiente de validación (D18).
+- **Resultado:** compra trazada con costos históricos y stock del CD aumentado una vez. Actualiza el promedio ponderado del Disponible sin revalorizar las reservas (D18).
 - **Por definir:** recepción parcial, pagos a proveedores y devoluciones al proveedor (A06). No incluye generación automática de compras sugeridas, que es opcional.
 
 ## CU04 — Consolidar necesidades en una orden de reposición
@@ -95,7 +95,7 @@ Las políticas señaladas como propuestas siguen pendientes de validación. Los 
 - **Flujo propuesto:** consolidar cantidad por producto; conservar precio y costo aplicados; calcular total; validar pago completo, eventualmente mixto (D06); registrar venta/detalles, salida de Disponible, cobros/caja y comprobante interno en una transacción.
 - **Errores:** cantidad no positiva, sobreventa agregada, cobro distinto del total o fallo al registrar cualquier componente; no confirmar venta parcial ni conservar cobro aislado.
 - **Resultado:** venta histórica, stock reducido y cobros documentados. Modificar catálogo posteriormente no altera esta operación.
-- **Por definir:** pagos mixtos, redondeo y alcance del comprobante. Se propone comprobante interno sin integración fiscal, que la consigna no especifica.
+- **Decisión aplicada:** pagos simples o mixtos por el total exacto; importes en centavos y comprobante interno sin integración fiscal.
 
 ## CU09 — Registrar devolución comercial
 
@@ -105,7 +105,7 @@ Las políticas señaladas como propuestas siguen pendientes de validación. Los 
 - **Flujo:** recuperar originales y devoluciones previas; validar pertenencia y cantidad acumulada; calcular reintegro con precio original; inspeccionar condición; registrar devolución, movimiento de inventario y egreso de caja en una transacción.
 - **Errores:** venta inexistente, producto ajeno, cantidad acumulada superior a la vendida, plazo/condición incumplidos o fallo persistente; no aceptar devolución parcial inconsistente.
 - **Resultado:** reintegro trazado; producto vendible vuelve a Disponible y producto no vendible queda bloqueado. El reintegro no determina por sí solo vendibilidad.
-- **Por definir:** plazo, condiciones/excepciones, local receptor y política de reintegro (A08). No se inventan valores antes de revisarlos con el grupo/docente.
+- **Decisión aplicada:** mismo local, motivo y referencia única, sin plazo arbitrario; se admite elegir medio de reintegro. Se consolidan renglones repetidos y se controla el acumulado de ambas condiciones. Vendible vuelve al costo original; NO_VENDIBLE queda en Rechazado con causa DEVOLUCION. Precio cero implica reintegro cero sin movimiento ficticio de caja.
 
 ## CU10 — Consultar cuatro reportes
 
@@ -115,4 +115,4 @@ Las políticas señaladas como propuestas siguen pendientes de validación. Los 
 - **Flujo:** consultar ventas/ingresos por local y medio; ranking de productos y margen estimado; existencias/mínimos; rechazos por precinto. Definiciones detalladas: REP01-REP04 del análisis.
 - **Errores:** período inválido o referencias incorrectas; solicitar corrección.
 - **Resultado:** consultas con agregaciones, sin modificar operaciones. Cobros mixtos no duplican total de venta; mínimos incluyen saldo cero; rechazo no equivale automáticamente a pérdida económica.
-- **Por definir:** presentación/exportación exigida y criterio de valoración. Propuesta: devoluciones agrupadas por su fecha real y margen con precio/costo histórico.
+- **Implementado:** presentación tabular por secciones y CSV. Devoluciones por fecha real; margen histórico con reversión de costo solo para vendibles. Existencias es una foto actual. El medio filtra únicamente la sección caja. Véanse [definiciones](reportes.md).

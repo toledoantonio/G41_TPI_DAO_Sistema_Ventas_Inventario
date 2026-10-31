@@ -14,6 +14,7 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - [Secuencia de verificación](docs/secuencia_verificacion.md).
 - [Patrones aplicados y ubicación en el código](docs/patrones.md).
 - [Cobertura de requisitos obligatorios](docs/alcance_verificado.md).
+- [Definiciones y filtros de los cuatro reportes](docs/reportes.md).
 
 ## Funcionalidades implementadas
 
@@ -25,6 +26,8 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - Despacho, recepción, verificación o rechazo, con historial inmutable, transferencia de costo promedio al local y patrón **State**.
 - **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
 - Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
+- **Devoluciones parciales vinculadas a ventas:** cantidades acumuladas, referencia única, reintegro al precio original y reingreso vendible o bloqueado, con stock y caja en una transacción.
+- **Cuatro reportes no triviales** con agregaciones, filtros y exportación CSV: ventas/ingresos, ranking/margen, existencias/mínimos y rechazos por precinto.
 
 La aplicación está desarrollada en **Python**, con interfaz de escritorio **Tkinter/ttk** (`frontend/`) y persistencia en **SQLite 3**.
 
@@ -49,9 +52,13 @@ En Windows se puede abrir **iniciar.cmd** con doble clic para usar la base norma
 ```
 
 Para probar el flujo completo:
-1. En **4. Bultos y remitos** seleccionar el bulto, despacharlo y recibirlo en Local Centro (mantiene 10 unidades pendientes y cero disponibles).
+
+1. En **4. Logística** seleccionar el bulto, despacharlo y recibirlo en Local Centro (mantiene 10 unidades pendientes y cero disponibles).
 2. Introducir `PRECINTO-DEMO-01` y verificar: bulto y remito quedan Verificados y las 10 unidades pasan a Disponible en el local con su costo promedio transferido.
 3. En **6. Ventas y caja** seleccionar Local Centro, agregar productos, registrar el cobro (o usar *Saldar resto con medio seleccionado*) y confirmar la venta para emitir el comprobante interno y actualizar stock y caja.
+4. En **7. Devoluciones → Nueva devolución**, seleccionar la venta y pulsar **Cargar venta**. Seleccionar un detalle original, indicar cantidad y condición e incorporarlo; completar referencia única, motivo y medio de reintegro y confirmar. **Historial y consulta** permite recuperar el documento. Una devolución no vendible queda bloqueada y no se puede volver a vender.
+5. En **8. Reportes**, elegir uno de los cuatro reportes, filtros y **Generar reporte**. El filtro de medio afecta solo la sección de caja. Existencias muestra la situación actual y no admite fechas históricas. Cada sección tiene una pestaña; el resultado puede exportarse a CSV.
+6. Cerrar y reabrir con la misma base: ventas, devoluciones, caja e inventario se conservan. La carga inicial de demo no vuelve a repetirse.
 
 ## Verificación
 
@@ -72,7 +79,7 @@ Al abrir una base anterior se reconstruyen los costos desde compras y movimiento
 
 - **State (Cap. 16.2):** `Bulto` delega sus acciones en `EstadoBulto(ABC)` y sus seis estados concretos. Cada estado determina la transición válida e invoca `contexto.cambiar_estado(...)` o rechaza la operación.
 - **Singleton (Cap. 15.3):** `BaseDatos` garantiza una única instancia del gestor de conexiones y transacciones SQLite mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()`.
-- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
+- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO`, `DevolucionDAO`, `ReportesDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
 
 La [justificación técnica](docs/patrones.md) identifica participantes, archivos y pruebas.
 

@@ -1,6 +1,6 @@
 # Cobertura del trabajo práctico
 
-Revisión del 28/10/2026 contra el código, el esquema SQLite y los procesos de la consigna.
+Revisión del 31/10/2026 contra el código, el esquema SQLite y los procesos de la consigna.
 
 ## Procesos obligatorios
 
@@ -12,7 +12,7 @@ Revisión del 28/10/2026 contra el código, el esquema SQLite y los procesos de 
 | 4. Preparar bultos, remito y precinto | Contenido con varios productos y costo histórico de transferencia (`ContenidoBulto`), reserva, remito por bulto y precinto único | Contenido fijo al preparar; sin cancelación ni edición de bultos. |
 | 5. Registrar despacho desde CD | Salida de reservado, transición En tránsito e historial atómicos | No incluye transporte externo ni seguimiento geográfico. |
 | 6. Recibir y verificar precinto | Valida local destino, mantiene Pendiente, verifica o rechaza con remito, transfiere costo promedio ponderado al local y registra movimientos conjuntos | Código distinto íntegro queda bloqueado. |
-| 7. Venta, cobro, comprobante y devolución | **Ventas, cobros, caja y comprobante implementados** (`Venta`, `DetalleVenta`, `Cobro`, `Comprobante`, `VentaDAO`, pestaña 6). **Falta devolución comercial.** | Falta implementar `Devolucion` / `DetalleDevolucion` vinculada a la venta original. |
+| 7. Venta, cobro, comprobante y devolución | **Ventas, cobros, caja, comprobantes y devoluciones implementados.** Pestañas 6 y 7; devolución al detalle original, cantidad acumulada y condición inspeccionada. | Mismo local, referencia única, reintegro completo del detalle devuelto al precio original; sin pasarela ni recuperación de mercadería bloqueada. |
 | Integración de compras del contexto | Compra recibida en CD (`Compra`, `DetalleCompra`), proveedor, detalles/costos históricos, entrada de stock y cálculo de costo promedio ponderado | Sin pagos a proveedores ni recepción parcial, según alcance mínimo adoptado. |
 
 ## Validaciones y mínimos de entrega
@@ -24,18 +24,18 @@ Revisión del 28/10/2026 contra el código, el esquema SQLite y los procesos de 
 | Historial inmutable del bulto | Triggers impiden UPDATE/DELETE; estado e historial se guardan juntos y se contrastan al recuperar. |
 | No vender por encima de Disponible | **Implementado y probado.** `Venta` consolida renglones por producto y valida contra el stock `disponible` del local antes de confirmar. |
 | Evitar productos/proveedores duplicados | Códigos normalizados y únicos; validaciones en objetos de dominio, servicios y SQLite. |
-| Devolución vinculada a venta y reglas | **Pendiente (Incremento 2):** requiere originales, cantidades acumuladas, condición de mercadería y reintegro. |
+| Devolución vinculada a venta y reglas | **Implementado y probado:** pertenencia, mismo local, acumulados, condiciones, precio/costo original, reintentos, rollback y concurrencia. |
 | Al menos dos patrones | **Cumplido:** **State** (GoF), **Singleton** (GoF) y **DAO** aplicados, documentados y probados con `pytest`. |
-| Al menos cuatro reportes no triviales | **Pendiente (Incremento 3).** |
+| Al menos cuatro reportes no triviales | **Implementado y probado:** cuatro reportes con agregaciones, filtros y CSV; [definiciones y cálculos](reportes.md). |
 | SQLite 3 y frontend | Implementados: `sqlite3` y `Tkinter/ttk`. |
 
 Correcciones verificadas: costos fijos de reservas separados del promedio Disponible; conservación de valor en compras intercaladas con transferencias y ventas; reconstrucción transaccional/versionada de costos anteriores, con reapertura y rollback; configuración única que rechaza otra ruta e inicialización concurrente protegida. Véanse [regresiones](../tests/test_costos_migracion.py) y [límites de migración y redondeo](modelo_datos.md#migración-de-costos).
 
-## Orden de implementación pendiente
+## Verificación del incremento y cierre
 
-1. Implementar devolución parcial vinculada al detalle original, acumulados, reintegro al precio original y reingreso vendible o bloqueado según condición (Incremento 2).
-2. Completar los cuatro reportes previstos: ventas/ingresos por período, local y medio; productos más vendidos y margen; existencias/mínimos; rechazos por precinto con agregaciones (Incremento 3).
-3. Demostrar el recorrido integral completo desde el frontend (Incremento 4).
+Las pruebas de devoluciones/reportes contrastan cantidades e importes conocidos, pago mixto sin duplicar ventas, devoluciones de otro período, existencias cero y tasas de rechazo de bultos con varios productos. La prueba integral de interfaz recorre compra demo → logística → venta → devolución → cuatro reportes/CSV → reapertura. También se prueba la actualización de versión 1 a 2 sin alterar ventas ni costos.
+
+Pendiente del grupo: revisión humana de la presentación final, ensayo de exposición y comprobación del entorno de entrega. Los opcionales siguen fuera de este incremento.
 
 ## Documentación actualizada
 

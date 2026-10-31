@@ -1,4 +1,4 @@
-"""Servicios de aplicación: catálogo, compras, logística verificada, costos y ventas."""
+"""Servicios: catálogo, logística, ventas, devoluciones y consultas de reportes."""
 
 from contextlib import contextmanager
 from datetime import datetime
@@ -10,6 +10,8 @@ from backend.daos.consultas_dao import ConsultasDAO
 from backend.daos.operaciones_dao import OperacionesDAO
 from backend.daos.producto_dao import ProductoDAO
 from backend.daos.venta_dao import VentaDAO
+from backend.daos.devolucion_dao import DevolucionDAO
+from backend.models.devoluciones import Devolucion
 from backend.database.config import BaseDatos
 from backend.models.entidades import (
     Bulto,
@@ -308,3 +310,71 @@ class Sistema:
     def comprobante_venta(self, identificador):
         with self.db.conectar() as cx:
             return ConsultasDAO(cx).comprobante_venta(identificador)
+
+    def detalles_devolvibles(self, venta_id):
+        with self.db.conectar() as cx:
+            VentaDAO(cx).obtener(entero(venta_id, "Venta"))
+            return DevolucionDAO(cx).originales(venta_id)
+
+    def registrar_devolucion(self, venta_id, local_id, detalles, medio_reintegro, motivo, referencia):
+        """Detalles: (detalle_venta_id, cantidad, VENDIBLE/NO_VENDIBLE).
+
+        La referencia identifica una operación y evita duplicar reintentos.
+        La mercadería bloqueada ingresa a Rechazado, con causa DEVOLUCION.
+        """
+        devolucion = Devolucion(venta_id, local_id, referencia, motivo, medio_reintegro, ahora())
+        cantidades = {}
+        for detalle_id, cantidad, condicion in detalles:
+            clave = (entero(detalle_id, "Detalle de venta"), codigo(condicion))
+            cantidades[clave] = entero(cantidades.get(clave, 0) + entero(cantidad))
+        with self._operacion() as cx:
+            venta = VentaDAO(cx).obtener(devolucion.venta_id)
+            CatalogoDAO(cx).ubicacion(devolucion.local_id, "LOCAL")
+            if venta.local_id != devolucion.local_id:
+                raise ErrorDominio("La devolución debe realizarse en el mismo local de la venta.")
+            dao = DevolucionDAO(cx)
+            originales = {f["id"]: f for f in dao.originales(devolucion.venta_id)}
+            acumuladas = {}
+            for (detalle_id, condicion), cantidad in cantidades.items():
+                original = originales.get(detalle_id)
+                if original is None:
+                    raise ErrorDominio("El detalle no pertenece a la venta original.")
+                acumuladas[detalle_id] = acumuladas.get(detalle_id, 0) + cantidad
+                if original["devuelta"] + acumuladas[detalle_id] > original["cantidad"]:
+                    raise ErrorDominio("La devolución acumulada supera la cantidad vendida.")
+                devolucion.agregar_detalle(original, cantidad, condicion)
+            devolucion.validar()
+            identificador = dao.crear(devolucion)
+            productos = {}
+            for detalle in devolucion.detalles:
+                dao.guardar_detalle(identificador, detalle)
+                saldo = productos.setdefault(detalle.producto_id, {
+                    "disponible": 0, "rechazado": 0, "costo": detalle.costo_unitario_centavos,
+                })
+                campo = "disponible" if detalle.condicion == "VENDIBLE" else "rechazado"
+                saldo[campo] += detalle.cantidad
+            for producto_id, saldo in productos.items():
+                CatalogoDAO(cx).mover(
+                    devolucion.local_id, producto_id, "DEVOLUCION", identificador, devolucion.fecha,
+                    disponible=saldo["disponible"], rechazado=saldo["rechazado"],
+                    costo_ingreso_centavos=saldo["costo"] if saldo["disponible"] else None,
+                )
+            # Un producto de precio original cero se devuelve sin egreso ficticio.
+            if devolucion.total_centavos:
+                VentaDAO(cx).registrar_movimiento_caja(
+                    devolucion.local_id, "EGRESO", devolucion.medio_reintegro, devolucion.total_centavos,
+                    "DEVOLUCION", identificador, devolucion.fecha,
+                )
+            return identificador
+
+    def obtener_devolucion(self, identificador):
+        with self.db.conectar() as cx:
+            return DevolucionDAO(cx).obtener(entero(identificador, "Devolución"))
+
+    def generar_reporte(self, tipo, desde=None, hasta=None, ubicacion_id=None, medio_pago=None):
+        from backend.reports.generador_reportes import GeneradorReportes
+
+        with self.db.conectar() as cx:
+            # Todas las secciones ven la misma instantánea, aun con otra ventana escribiendo.
+            cx.execute("BEGIN")
+            return GeneradorReportes(cx).generar(tipo, desde, hasta, ubicacion_id, medio_pago)

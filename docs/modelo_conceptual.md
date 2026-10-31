@@ -1,6 +1,6 @@
 # Modelo conceptual del dominio
 
-Versión 0.2, 22/10/2026. Modelo conceptual actualizado con el incremento de catálogo y logística. Las clases comerciales son diseño de los incrementos siguientes; no están implementadas. El DER vigente está en [modelo de datos](modelo_datos.md). Se apoya en los [casos de uso](casos_uso.md) y conserva las decisiones pendientes del [análisis](analisis_dominio.md).
+Estado: 31/10/2026. Se conserva este modelo conceptual como análisis de responsabilidades; ventas y devoluciones ya están implementadas. Las clases reales y el esquema vigente se documentan por separado. El DER vigente está en [modelo de datos](modelo_datos.md). Se apoya en los [casos de uso](casos_uso.md) y conserva las decisiones pendientes del [análisis](analisis_dominio.md).
 
 ## Catálogo, operaciones e inventario
 

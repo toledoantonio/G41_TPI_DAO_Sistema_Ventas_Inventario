@@ -44,6 +44,8 @@ class BaseDatos:
                     esquema = Path(__file__).with_name("esquema.sql").read_text(encoding="utf-8")
                     conexion.executescript("BEGIN IMMEDIATE;\n" + esquema)
                     migrar_costos(conexion)
+                    # El esquema añade devoluciones sin reconstruir costos ya migrados.
+                    conexion.execute("PRAGMA user_version = 2")
                     conexion.commit()
                 except Exception:
                     conexion.rollback()

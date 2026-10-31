@@ -140,3 +140,34 @@ CREATE TABLE IF NOT EXISTS movimiento_caja (
     referencia_id INTEGER NOT NULL,
     fecha TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS devolucion (
+    id INTEGER PRIMARY KEY,
+    referencia TEXT NOT NULL UNIQUE,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    motivo TEXT NOT NULL,
+    medio_reintegro TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS detalle_devolucion (
+    id INTEGER PRIMARY KEY,
+    devolucion_id INTEGER NOT NULL REFERENCES devolucion(id),
+    detalle_venta_id INTEGER NOT NULL REFERENCES detalle_venta(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    condicion TEXT NOT NULL CHECK (condicion IN ('VENDIBLE', 'NO_VENDIBLE')),
+    UNIQUE (devolucion_id, detalle_venta_id, condicion)
+);
+CREATE INDEX IF NOT EXISTS devolucion_por_detalle ON detalle_devolucion(detalle_venta_id);
+CREATE TRIGGER IF NOT EXISTS validar_detalle_devolucion BEFORE INSERT ON detalle_devolucion
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM devolucion d JOIN venta v ON v.id = d.venta_id
+        JOIN detalle_venta dv ON dv.venta_id = v.id
+        WHERE d.id = NEW.devolucion_id AND dv.id = NEW.detalle_venta_id AND d.local_id = v.local_id
+    ) THEN RAISE(ABORT, 'El detalle no pertenece a la venta y local de la devolución') END;
+    SELECT CASE WHEN NEW.cantidad + COALESCE((
+        SELECT SUM(cantidad) FROM detalle_devolucion WHERE detalle_venta_id = NEW.detalle_venta_id
+    ), 0) > (SELECT cantidad FROM detalle_venta WHERE id = NEW.detalle_venta_id)
+    THEN RAISE(ABORT, 'La devolución supera la cantidad vendida') END;
+END;

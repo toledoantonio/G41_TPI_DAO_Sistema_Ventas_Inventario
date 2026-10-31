@@ -156,3 +156,24 @@ erDiagram
     VENTA ||--|{ COBRO : recibe
     VENTA ||--|| COMPROBANTE : documenta
     UBICACION ||--o{ MOVIMIENTO_CAJA : opera_caja
+    DEVOLUCION {
+        int id PK
+        string referencia UK
+        int venta_id FK
+        int local_id FK
+        string motivo
+        string medio_reintegro
+        string fecha
+        int total_centavos
+    }
+    DETALLE_DEVOLUCION {
+        int id PK
+        int devolucion_id FK
+        int detalle_venta_id FK
+        int cantidad
+        string condicion
+    }
+    VENTA ||--o{ DEVOLUCION : origen
+    UBICACION ||--o{ DEVOLUCION : reintegra
+    DEVOLUCION ||--|{ DETALLE_DEVOLUCION : contiene
+    DETALLE_VENTA ||--o{ DETALLE_DEVOLUCION : limita
