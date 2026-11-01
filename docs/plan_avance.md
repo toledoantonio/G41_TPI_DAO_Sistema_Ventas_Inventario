@@ -1,6 +1,6 @@
 # Plan del trabajo práctico
 
-Actualizado: 31/10/2026. Rama: `codex/devoluciones-reportes`, basada en `main`, que integra Antigravity y las correcciones anteriores.
+Actualizado: 31/10/2026. Rama: `codex/compras-sugeridas-lotes`, basada en `main` con los tres incrementos obligatorios integrados.
 
 ## Criterios confirmados
 
@@ -38,7 +38,7 @@ Documentación vigente:
 
 ## Segunda parte
 
-Una vez consolidado el alcance obligatorio, elegir opcionales de uno en uno: compras sugeridas por faltantes; promociones/descuentos/listas de precios; lotes/series/vencimientos; clientes frecuentes/cuentas corrientes/beneficios; inventario físico y conciliación.
+Se eligieron e implementaron dos procesos opcionales: órdenes de compra sugeridas por faltantes y registro de lotes con vencimiento opcional. Incluyen frontend, persistencia, migración, trazabilidad y pruebas. Véanse [reglas y recorrido](opcionales.md). La familia lotes/series/vencimientos se cubre con lotes y fechas; no se incorporan series por unidad. Los otros opcionales continúan fuera de alcance: promociones/listas, clientes/cuentas/beneficios e inventario físico/conciliación.
 
 ## Criterio del README
 

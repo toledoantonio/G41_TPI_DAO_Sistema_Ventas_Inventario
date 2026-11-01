@@ -12,7 +12,7 @@ from backend.database.config import BaseDatos
 from backend.patterns.estados_bulto import ErrorDominio
 from backend.reports.generador_reportes import REPORTES, exportar_csv
 from backend.services.sistema import Sistema
-from tests.test_costos_migracion import datos, enviar, tmp_path
+from tests.test_costos_migracion import datos, enviar, tmp_path, quitar_esquema_lotes
 
 
 @pytest.fixture
@@ -262,6 +262,7 @@ def test_actualizacion_base_version_uno_preserva_ventas_y_costos(comercio):
     s, _, _, _, _, _, venta, _ = comercio
     comprobante, saldos = s.comprobante_venta(venta), s.listar("inventario")
     with s.db.transaccion() as cx:
+        quitar_esquema_lotes(cx)
         cx.execute("DROP TABLE detalle_devolucion")
         cx.execute("DROP TABLE devolucion")
         cx.execute("PRAGMA user_version = 1")
@@ -272,7 +273,7 @@ def test_actualizacion_base_version_uno_preserva_ventas_y_costos(comercio):
     assert s.comprobante_venta(venta) == comprobante
     assert s.listar("inventario") == saldos
     with s.db.conectar() as cx:
-        assert cx.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert cx.execute("PRAGMA user_version").fetchone()[0] == 3
         assert cx.execute("PRAGMA foreign_key_check").fetchall() == []
 
 

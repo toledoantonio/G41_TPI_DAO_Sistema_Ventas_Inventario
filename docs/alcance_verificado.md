@@ -35,7 +35,7 @@ Correcciones verificadas: costos fijos de reservas separados del promedio Dispon
 
 Las pruebas de devoluciones/reportes contrastan cantidades e importes conocidos, pago mixto sin duplicar ventas, devoluciones de otro período, existencias cero y tasas de rechazo de bultos con varios productos. La prueba integral de interfaz recorre compra demo → logística → venta → devolución → cuatro reportes/CSV → reapertura. También se prueba la actualización de versión 1 a 2 sin alterar ventas ni costos.
 
-Pendiente del grupo: revisión humana de la presentación final, ensayo de exposición y comprobación del entorno de entrega. Los opcionales siguen fuera de este incremento.
+Pendiente del grupo: revisión humana de la presentación final, ensayo de exposición y comprobación del entorno de entrega. Se incorporaron dos opcionales en el incremento siguiente: compras sugeridas y lotes/vencimientos.
 
 ## Documentación actualizada
 
@@ -45,3 +45,12 @@ Pendiente del grupo: revisión humana de la presentación final, ensayo de expos
 - [Estados del bulto](ciclo_bulto.md): transiciones y guardas.
 - [Secuencia de verificación](secuencia_verificacion.md): colaboración de State, DAO y transacción.
 - [Patrones](patrones.md): problema, participantes, ubicación y pruebas de State, Singleton y DAO.
+
+## Opcionales seleccionados
+
+| Proceso | Implementación verificada | Límite |
+| --- | --- | --- |
+| Generar órdenes de compra sugeridas por faltantes | Necesidad neta por producto de CD/locales, pedidos/envíos y compras pendientes; generación serializada, consulta, cancelación y recepción vinculada a compra real, pestaña 9. | Un proveedor elegido por orden; recepción completa; sin pagos a proveedores ni envío externo de pedidos. |
+| Registrar lotes, números de serie o vencimientos | Lotes con fecha opcional en compras; FEFO, saldos por ubicación, asignaciones a bultos/ventas/devoluciones, bloqueo de vencidos, migración de legado y consulta de trazabilidad, pestaña 9. | Sin series individuales, destrucción automática, recuperación de vencidos ni conciliación física. Origen previo se conserva como desconocido. |
+
+Las nuevas reglas se prueban junto con toda la suite obligatoria. Cada categoría del saldo agregado coincide con la suma por lote y su libro. [Definiciones y límites](opcionales.md).

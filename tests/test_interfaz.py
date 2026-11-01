@@ -109,6 +109,41 @@ class TestInterfaz:
         assert len(self.s.listar("compras")) == 1
         assert len(self.s.listar("bultos")) == 1
 
+    def test_opcionales_sugerencia_recepcion_lote_y_reapertura(self):
+        """La sugerencia no crea stock; su compra completa sí registra un lote trazable."""
+        producto = self.s.listar("productos")[0]["id"]
+        cd = next(u["id"] for u in self.s.listar("ubicaciones") if u["tipo"] == "CD")
+        self.s.configurar_minimo(cd, producto, 20)  # CD demo tiene 10 disponibles + 10 reservadas.
+        vista = self.app.opcionales_vista
+        vista.formulario.variables["referencia"].set("OC-UI-01")
+        with patch("frontend.app.messagebox.showerror") as error:
+            vista.boton_previsualizar.invoke()
+            vista.boton_generar.invoke()
+            error.assert_not_called()
+        assert self.s.listar("compras_sugeridas")[0]["unidades"] == 10
+        assert len(self.s.listar("compras")) == 1
+        vista.ordenes.arbol.selection_set("0")
+        vista.boton_recibir.invoke()
+        assert self.app.orden_compra_seleccionada is not None
+        f = self.app.compra_items.formulario
+        f.variables["cantidad"].set("10")
+        f.variables["costo"].set("65")
+        f.variables["lote"].set("LOTE-UI-01")
+        f.variables["vencimiento"].set("2099-12-31")
+        self.app.compra_items.boton_agregar.invoke()
+        with patch("frontend.app.messagebox.showerror") as error:
+            assert self.app.ejecutar(self.app.confirmar_compra)
+            error.assert_not_called()
+        assert self.s.listar("compras_sugeridas")[0]["estado"] == "RECIBIDA"
+        assert any(l["codigo"] == "LOTE-UI-01" and l["disponible"] == 10 for l in self.s.listar("lotes"))
+        assert self.app.orden_compra_seleccionada is None
+        ruta = self.s.db.ruta
+        BaseDatos.reset_for_testing()
+        reabierta = Sistema(ruta)
+        assert reabierta.listar("compras_sugeridas")[0]["estado"] == "RECIBIDA"
+        lote = next(l for l in reabierta.listar("lotes") if l["codigo"] == "LOTE-UI-01")
+        assert reabierta.trazabilidad_lote(lote["lote_id"])[0]["causa"] == "COMPRA"
+
     def test_devolucion_reportes_y_exportacion_desde_interfaz(self):
         """Compra demo → logística → venta → devolución → cuatro reportes → CSV → reapertura."""
         self.test_callbacks_logistica_venta_y_actualizacion_inventario()

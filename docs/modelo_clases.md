@@ -252,6 +252,41 @@ classDiagram
     Aplicacion *-- VistaReportes
     VistaDevoluciones --> Sistema
     VistaReportes --> Sistema
+    class Lote {
+        producto_id
+        codigo
+        vencimiento
+        esta_vencido(hoy)
+    }
+    class NecesidadCompra {
+        minimo_cd
+        disponible_cd
+        necesidad_locales
+        compras_pendientes
+        cantidad_sugerida
+    }
+    class LoteDAO {
+        registrar(producto_id, identificacion, vencimiento, hoy)
+        seleccionar(ubicacion, producto, cantidad, hoy)
+        mover(ubicacion, lote, causa, referencia, fecha)
+        devolvibles(detalle_id)
+        listar(hoy, ubicacion)
+        traza(lote)
+    }
+    class CompraSugeridaDAO {
+        necesidades(cd, hoy)
+        crear(referencia, cd, proveedor, fecha, detalles)
+        validar_recepcion(orden_id, compra)
+        recibir(orden_id, compra_id)
+        cancelar(orden_id)
+    }
+    class VistaOpcionales
+    Aplicacion *-- VistaOpcionales
+    VistaOpcionales --> Sistema
+    Sistema ..> LoteDAO
+    Sistema ..> CompraSugeridaDAO
+    LoteDAO ..> Lote
+    CompraSugeridaDAO ..> NecesidadCompra
 ```
 
 `BaseDatos` implementa el patrón **Singleton** según GoF (Cap. 15.3), almacenando su instancia única en `_instance`, controlando la instanciación mediante `__new__` y la inicialización única mediante `_initialized`, además de exponer `reset_for_testing()` (Cap. 15.5.2).

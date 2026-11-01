@@ -51,3 +51,5 @@ La configuración es única **por proceso**. Las rutas se expanden y resuelven a
 Pruebas: `test_fallo_en_historial_revierte_estado_remito_y_stock`, `test_fallo_en_comprobante_revierte_venta_stock_y_caja`, `test_recorrido_persistencia_historial_y_reconciliacion` y `test_dos_preparaciones_concurrentes_no_sobreasignan`.
 
 Diagramas: [clases implementadas](modelo_clases.md), [ciclo de vida](ciclo_bulto.md) y [secuencia de verificación](secuencia_verificacion.md).
+
+Los opcionales añaden `LoteDAO` y `CompraSugeridaDAO` para persistencia y consultas. FEFO es una única política de selección, no se presenta como otro patrón Strategy. Las necesidades de compra se calculan mediante `NecesidadCompra`; no se agrega un patrón para aumentar el conteo.

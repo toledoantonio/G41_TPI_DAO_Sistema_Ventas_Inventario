@@ -171,3 +171,162 @@ BEGIN
     ), 0) > (SELECT cantidad FROM detalle_venta WHERE id = NEW.detalle_venta_id)
     THEN RAISE(ABORT, 'La devolución supera la cantidad vendida') END;
 END;
+CREATE TRIGGER IF NOT EXISTS historial_no_borrar BEFORE DELETE ON historial_bulto
+BEGIN SELECT RAISE(ABORT, 'El historial es inmutable'); END;
+CREATE TABLE IF NOT EXISTS movimiento_inventario (
+    id INTEGER PRIMARY KEY,
+    ubicacion_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    producto_id INTEGER NOT NULL REFERENCES producto(id),
+    disponible INTEGER NOT NULL,
+    reservado INTEGER NOT NULL,
+    pendiente INTEGER NOT NULL,
+    rechazado INTEGER NOT NULL,
+    causa TEXT NOT NULL,
+    referencia_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL,
+    UNIQUE (ubicacion_id, producto_id, causa, referencia_id)
+);
+CREATE TABLE IF NOT EXISTS venta (
+    id INTEGER PRIMARY KEY,
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS detalle_venta (
+    id INTEGER PRIMARY KEY,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    producto_id INTEGER NOT NULL REFERENCES producto(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    precio_unitario_centavos INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
+    costo_unitario_centavos INTEGER NOT NULL CHECK (costo_unitario_centavos >= 0),
+    UNIQUE (venta_id, producto_id)
+);
+CREATE TABLE IF NOT EXISTS cobro (
+    id INTEGER PRIMARY KEY,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    medio_pago TEXT NOT NULL,
+    importe_centavos INTEGER NOT NULL CHECK (importe_centavos > 0),
+    fecha TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS comprobante (
+    id INTEGER PRIMARY KEY,
+    numero TEXT NOT NULL UNIQUE,
+    venta_id INTEGER NOT NULL UNIQUE REFERENCES venta(id),
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS movimiento_caja (
+    id INTEGER PRIMARY KEY,
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    tipo TEXT NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+    medio_pago TEXT NOT NULL,
+    importe_centavos INTEGER NOT NULL CHECK (importe_centavos > 0),
+    causa TEXT NOT NULL,
+    referencia_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS devolucion (
+    id INTEGER PRIMARY KEY,
+    referencia TEXT NOT NULL UNIQUE,
+    venta_id INTEGER NOT NULL REFERENCES venta(id),
+    local_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    motivo TEXT NOT NULL,
+    medio_reintegro TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+CREATE TABLE IF NOT EXISTS detalle_devolucion (
+    id INTEGER PRIMARY KEY,
+    devolucion_id INTEGER NOT NULL REFERENCES devolucion(id),
+    detalle_venta_id INTEGER NOT NULL REFERENCES detalle_venta(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    condicion TEXT NOT NULL CHECK (condicion IN ('VENDIBLE', 'NO_VENDIBLE')),
+    UNIQUE (devolucion_id, detalle_venta_id, condicion)
+);
+CREATE INDEX IF NOT EXISTS devolucion_por_detalle ON detalle_devolucion(detalle_venta_id);
+CREATE TRIGGER IF NOT EXISTS validar_detalle_devolucion BEFORE INSERT ON detalle_devolucion
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM devolucion d JOIN venta v ON v.id = d.venta_id
+        JOIN detalle_venta dv ON dv.venta_id = v.id
+        WHERE d.id = NEW.devolucion_id AND dv.id = NEW.detalle_venta_id AND d.local_id = v.local_id
+    ) THEN RAISE(ABORT, 'El detalle no pertenece a la venta y local de la devolución') END;
+    SELECT CASE WHEN NEW.cantidad + COALESCE((
+        SELECT SUM(cantidad) FROM detalle_devolucion WHERE detalle_venta_id = NEW.detalle_venta_id
+    ), 0) > (SELECT cantidad FROM detalle_venta WHERE id = NEW.detalle_venta_id)
+    THEN RAISE(ABORT, 'La devolución supera la cantidad vendida') END;
+END;
+CREATE TABLE IF NOT EXISTS lote (
+    id INTEGER PRIMARY KEY,
+    producto_id INTEGER NOT NULL REFERENCES producto(id),
+    codigo TEXT NOT NULL,
+    vencimiento TEXT,
+    legado INTEGER NOT NULL DEFAULT 0 CHECK (legado IN (0, 1)),
+    UNIQUE (producto_id, codigo)
+);
+CREATE TABLE IF NOT EXISTS existencia_lote (
+    ubicacion_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    disponible INTEGER NOT NULL DEFAULT 0 CHECK (disponible >= 0),
+    reservado INTEGER NOT NULL DEFAULT 0 CHECK (reservado >= 0),
+    pendiente INTEGER NOT NULL DEFAULT 0 CHECK (pendiente >= 0),
+    rechazado INTEGER NOT NULL DEFAULT 0 CHECK (rechazado >= 0),
+    PRIMARY KEY (ubicacion_id, lote_id)
+);
+CREATE TABLE IF NOT EXISTS compra_lote (
+    compra_id INTEGER NOT NULL REFERENCES compra(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    PRIMARY KEY (compra_id, lote_id)
+);
+CREATE TABLE IF NOT EXISTS bulto_lote (
+    bulto_id INTEGER NOT NULL REFERENCES bulto(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    PRIMARY KEY (bulto_id, lote_id)
+);
+CREATE TABLE IF NOT EXISTS venta_lote (
+    detalle_venta_id INTEGER NOT NULL REFERENCES detalle_venta(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    PRIMARY KEY (detalle_venta_id, lote_id)
+);
+CREATE TABLE IF NOT EXISTS devolucion_lote (
+    detalle_devolucion_id INTEGER NOT NULL REFERENCES detalle_devolucion(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    PRIMARY KEY (detalle_devolucion_id, lote_id)
+);
+CREATE TABLE IF NOT EXISTS movimiento_lote (
+    id INTEGER PRIMARY KEY,
+    ubicacion_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    lote_id INTEGER NOT NULL REFERENCES lote(id),
+    disponible INTEGER NOT NULL,
+    reservado INTEGER NOT NULL,
+    pendiente INTEGER NOT NULL,
+    rechazado INTEGER NOT NULL,
+    causa TEXT NOT NULL,
+    referencia_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL,
+    UNIQUE (ubicacion_id, lote_id, causa, referencia_id)
+);
+CREATE TRIGGER IF NOT EXISTS movimiento_lote_no_modificar BEFORE UPDATE ON movimiento_lote
+BEGIN SELECT RAISE(ABORT, 'El libro de lotes es inmutable'); END;
+CREATE TRIGGER IF NOT EXISTS movimiento_lote_no_borrar BEFORE DELETE ON movimiento_lote
+BEGIN SELECT RAISE(ABORT, 'El libro de lotes es inmutable'); END;
+CREATE TABLE IF NOT EXISTS orden_compra_sugerida (
+    id INTEGER PRIMARY KEY,
+    referencia TEXT NOT NULL UNIQUE,
+    cd_id INTEGER NOT NULL REFERENCES ubicacion(id),
+    proveedor_id INTEGER NOT NULL REFERENCES proveedor(id),
+    fecha TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'SUGERIDA' CHECK (estado IN ('SUGERIDA', 'RECIBIDA', 'CANCELADA')),
+    compra_id INTEGER UNIQUE REFERENCES compra(id),
+    CHECK ((estado = 'RECIBIDA' AND compra_id IS NOT NULL) OR (estado <> 'RECIBIDA' AND compra_id IS NULL))
+);
+CREATE TABLE IF NOT EXISTS detalle_compra_sugerida (
+    orden_id INTEGER NOT NULL REFERENCES orden_compra_sugerida(id),
+    producto_id INTEGER NOT NULL REFERENCES producto(id),
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    PRIMARY KEY (orden_id, producto_id)
+);

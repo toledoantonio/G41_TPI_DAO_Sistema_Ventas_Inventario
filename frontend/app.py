@@ -177,6 +177,8 @@ class Renglones(ttk.LabelFrame):
         ]
         if compra:
             campos.append(("costo", "Costo unitario", None))
+            campos.extend([("lote", "Lote (vacío: automático por compra)", None),
+                           ("vencimiento", "Vencimiento opcional AAAA-MM-DD", None)])
         self.formulario = Formulario(self, campos)
         self.formulario.pack(fill="x")
         botones = ttk.Frame(self)
@@ -191,6 +193,7 @@ class Renglones(ttk.LabelFrame):
         columnas = [("producto_id", "ID producto"), ("producto", "Producto"), ("cantidad", "Cantidad")]
         if compra:
             columnas.append(("costo", "Costo unitario"))
+            columnas.extend([("lote", "Lote"), ("vencimiento", "Vencimiento")])
         self.tabla = Tabla(self, columnas, alto=3)
         self.tabla.pack(fill="both", expand=True)
         app.refrescadores.append(self.formulario.actualizar)
@@ -209,6 +212,8 @@ class Renglones(ttk.LabelFrame):
                 "producto": etiqueta,
                 "cantidad": cantidad,
                 "costo": costo,
+                "lote": self.formulario.obtener("lote") if self.compra else None,
+                "vencimiento": self.formulario.obtener("vencimiento") if self.compra else None,
             }
         )
         self.tabla.cargar(self.items)
@@ -226,7 +231,7 @@ class Renglones(ttk.LabelFrame):
 
     def detalles(self):
         return [
-            (i["producto_id"], i["cantidad"], i["costo"]) if self.compra else (i["producto_id"], i["cantidad"])
+            (i["producto_id"], i["cantidad"], i["costo"], i.get("lote"), i.get("vencimiento")) if self.compra else (i["producto_id"], i["cantidad"])
             for i in self.items
         ]
 
@@ -377,6 +382,10 @@ class Aplicacion:
         self.devoluciones_vista.pack(fill="both", expand=True)
         self.reportes_vista = VistaReportes(self.panel("8. Reportes"), self)
         self.reportes_vista.pack(fill="both", expand=True)
+        from frontend.opcionales import VistaOpcionales
+
+        self.opcionales_vista = VistaOpcionales(self.panel("9. Compras / lotes"), self)
+        self.opcionales_vista.pack(fill="both", expand=True)
         self.actualizar()
 
     def opciones(self, consulta, tipo=None):
@@ -490,6 +499,12 @@ class Aplicacion:
             ],
         )
         self.compra_form.pack(fill="x")
+        self.orden_compra_seleccionada = None
+        contexto = ttk.Frame(panel)
+        contexto.pack(fill="x")
+        self.contexto_compra = tk.StringVar(value="Compra independiente")
+        ttk.Label(contexto, textvariable=self.contexto_compra, wraplength=900).pack(side="left")
+        ttk.Button(contexto, text="Usar compra independiente", command=self.compra_independiente).pack(side="right")
         self.compra_items = Renglones(panel, self, compra=True)
         self.compra_items.pack(fill="both", expand=True)
         ttk.Button(
@@ -515,11 +530,17 @@ class Aplicacion:
     def confirmar_compra(self):
         f = self.compra_form
         identificador = self.sistema.registrar_compra(
-            f.obtener("referencia"), f.obtener("proveedor"), f.obtener("cd"), self.compra_items.detalles()
+            f.obtener("referencia"), f.obtener("proveedor"), f.obtener("cd"), self.compra_items.detalles(),
+            orden_sugerida_id=self.orden_compra_seleccionada,
         )
         self.compra_items.limpiar()
         f.limpiar()
+        self.compra_independiente()
         return f"Compra {identificador} registrada; stock y costo promedio del CD actualizados."
+
+    def compra_independiente(self):
+        self.orden_compra_seleccionada = None
+        self.contexto_compra.set("Compra independiente")
 
     def crear_reposicion(self):
         panel = self.panel("3. Reposición")
@@ -699,6 +720,9 @@ class Aplicacion:
 
     def ver_bulto(self):
         identificador = self.bultos.seleccionada()["id"]
+        self.mostrar_tabla("Lotes del bulto", self.sistema.lotes_bulto(identificador), [
+            ("codigo", "Lote"), ("producto_id", "Producto"), ("cantidad", "Unidades"), ("vencimiento", "Vencimiento"),
+        ])
         self.mostrar_tabla(
             f"Historial del bulto {identificador}",
             self.sistema.historial_bulto(identificador),
@@ -734,7 +758,9 @@ class Aplicacion:
             [
                 ("ubicacion", "Ubicación"),
                 ("codigo", "Producto"),
-                ("disponible", "Disponible"),
+                ("disponible", "Disp. registrado"),
+                ("vendible", "Vendible"),
+                ("vencido", "Vencido"),
                 ("reservado", "Reservado"),
                 ("pendiente", "Pendiente"),
                 ("rechazado", "Rechazado"),
@@ -747,7 +773,7 @@ class Aplicacion:
         self.inventario.pack(fill="both", expand=True)
         ttk.Label(
             panel,
-            text="Físico = disponible + reservado + pendiente + rechazado. El costo promedio corresponde al Disponible; lo reservado conserva el costo de cada bulto, consultable en su contenido.",
+            text="Disponible es el saldo físico registrado; Vendible excluye lotes vencidos. Faltante usa Vendible. El costo promedio corresponde al saldo Disponible registrado; no se destruye stock por vencer.",
             wraplength=1000,
         ).pack(anchor="w", pady=10)
         self.refrescadores.extend(

@@ -184,6 +184,85 @@ erDiagram
     UBICACION ||--o{ DEVOLUCION : reintegra
     DEVOLUCION ||--|{ DETALLE_DEVOLUCION : contiene
     DETALLE_VENTA ||--o{ DETALLE_DEVOLUCION : limita
+    LOTE {
+        int id PK
+        int producto_id FK
+        string codigo
+        string vencimiento
+        int legado
+    }
+    EXISTENCIA_LOTE {
+        int ubicacion_id PK, FK
+        int lote_id PK, FK
+        int disponible
+        int reservado
+        int pendiente
+        int rechazado
+    }
+    COMPRA_LOTE {
+        int compra_id PK, FK
+        int lote_id PK, FK
+        int cantidad
+    }
+    BULTO_LOTE {
+        int bulto_id PK, FK
+        int lote_id PK, FK
+        int cantidad
+    }
+    VENTA_LOTE {
+        int detalle_venta_id PK, FK
+        int lote_id PK, FK
+        int cantidad
+    }
+    DEVOLUCION_LOTE {
+        int detalle_devolucion_id PK, FK
+        int lote_id PK, FK
+        int cantidad
+    }
+    MOVIMIENTO_LOTE {
+        int id PK
+        int ubicacion_id FK
+        int lote_id FK
+        int disponible
+        int reservado
+        int pendiente
+        int rechazado
+        string causa
+        int referencia_id
+        string fecha
+    }
+    ORDEN_COMPRA_SUGERIDA {
+        int id PK
+        string referencia UK
+        int cd_id FK
+        int proveedor_id FK
+        string fecha
+        string estado
+        int compra_id FK, UK
+    }
+    DETALLE_COMPRA_SUGERIDA {
+        int orden_id PK, FK
+        int producto_id PK, FK
+        int cantidad
+    }
+    PRODUCTO ||--o{ LOTE : identifica
+    UBICACION ||--o{ EXISTENCIA_LOTE : mantiene
+    LOTE ||--o{ EXISTENCIA_LOTE : tiene
+    COMPRA ||--|{ COMPRA_LOTE : recibe
+    LOTE ||--o{ COMPRA_LOTE : ingresa
+    BULTO ||--|{ BULTO_LOTE : asigna
+    LOTE ||--o{ BULTO_LOTE : viaja
+    DETALLE_VENTA ||--|{ VENTA_LOTE : consume
+    LOTE ||--o{ VENTA_LOTE : vendido
+    DETALLE_DEVOLUCION ||--|{ DEVOLUCION_LOTE : retorna
+    LOTE ||--o{ DEVOLUCION_LOTE : devuelto
+    LOTE ||--o{ MOVIMIENTO_LOTE : traza
+    UBICACION ||--o{ MOVIMIENTO_LOTE : afecta
+    UBICACION ||--o{ ORDEN_COMPRA_SUGERIDA : compra_en_CD
+    PROVEEDOR ||--o{ ORDEN_COMPRA_SUGERIDA : elegido
+    ORDEN_COMPRA_SUGERIDA ||--|{ DETALLE_COMPRA_SUGERIDA : contiene
+    PRODUCTO ||--o{ DETALLE_COMPRA_SUGERIDA : necesita
+    ORDEN_COMPRA_SUGERIDA |o--o| COMPRA : recibida_como
 ```
 
 ## Datos y restricciones
@@ -214,7 +293,7 @@ Fuente editable del diagrama: [der.mmd](diagramas/der.mmd).
 
 ## Migración de costos
 
-El esquema actual usa `PRAGMA user_version = 2` e incorpora las tablas de devoluciones, índice por detalle original y trigger de pertenencia/cantidad. La versión económica 1 se conserva como paso previo; al actualizar de 1 a 2 no se reconstruyen costos ni se alteran ventas. Las bases nuevas o de versión 0 completan ambos pasos en la transacción de apertura. Las bases previas no tenían versión (`0`). La creación del esquema, columnas faltantes, reconstrucción y cambio de versión se confirman juntos bajo `BEGIN IMMEDIATE`. Si falla una comprobación, se revierten todos esos cambios y se puede reintentar después de conciliar el respaldo. Una versión superior se rechaza para evitar abrirla con código anterior.
+El esquema actual usa `PRAGMA user_version = 3`. El paso 2 incorpora devoluciones, índice por detalle original y trigger de pertenencia/cantidad; el paso 3 añade compras sugeridas y lotes/vencimientos. La versión económica 1 se conserva como paso previo; al actualizar de 1 a 2 no se reconstruyen costos ni se alteran ventas. Las bases nuevas o de versión 0 completan ambos pasos en la transacción de apertura. Las bases previas no tenían versión (`0`). La creación del esquema, columnas faltantes, reconstrucción y cambio de versión se confirman juntos bajo `BEGIN IMMEDIATE`. Si falla una comprobación, se revierten todos esos cambios y se puede reintentar después de conciliar el respaldo. Una versión superior se rechaza para evitar abrirla con código anterior.
 
 La reconstrucción recorre `movimiento_inventario` por su id global, no por fecha: compra → preparación → despacho → recepción → verificación/rechazo → venta. Cada compra aporta su costo histórico; al preparar se apartan unidades del promedio Disponible y se fija el costo del bulto. Las bases que no tenían la columna de costo del contenido la completan a partir de esa secuencia. Al verificar, el costo del bulto se promedia con el Disponible del local; un rechazo no habilita unidades ni altera ese promedio.
 
@@ -230,3 +309,17 @@ Se contrastan movimientos con sus documentos y con los cuatro saldos por ubicaci
 | `detalle_devolucion` | id, devolución y detalle de venta FK, cantidad positiva y condición VENDIBLE/NO_VENDIBLE. Único por devolución/detalle/condición; índice por detalle original. |
 
 El trigger de inserción exige pertenencia a la venta/local y acumulado no superior al vendido; el servicio valida lo mismo bajo BEGIN IMMEDIATE. Precio y costo se recuperan del detalle de venta histórico. Una devolución puede registrar dos condiciones del mismo producto y produce un único movimiento de inventario por producto, con ambos deltas. El egreso de caja usa causa DEVOLUCION y referencia al documento; si el total es cero, no se inserta egreso. No se editan ni eliminan documentos confirmados desde la aplicación.
+
+## Lotes y compras sugeridas: esquema 3
+
+| Tabla | Datos y restricciones |
+| --- | --- |
+| `lote` | id, producto FK, código único por producto, vencimiento opcional y bandera legado. Código/fecha validados en dominio y conservados desde el alta. |
+| `existencia_lote` | PK ubicación/lote; Disponible, Reservado, Pendiente, Rechazado no negativos. Su suma por producto coincide con existencia agregada. |
+| `compra_lote`, `bulto_lote` | PK documento/lote; cantidad positiva. Registran ingreso y asignación real a bulto. |
+| `venta_lote`, `devolucion_lote` | PK detalle/lote; cantidad positiva. La devolución limita su acumulado al lote y detalle originales. |
+| `movimiento_lote` | Documento/causa/fecha y deltas por ubicación/lote. Único por ubicación/lote/causa/referencia; no se sobrescriben movimientos. |
+| `orden_compra_sugerida` | Referencia única, CD/proveedor FK, fecha, estado SUGERIDA/RECIBIDA/CANCELADA y compra FK única. CHECK exige compra asociada solo cuando RECIBIDA. |
+| `detalle_compra_sugerida` | PK orden/producto, cantidad positiva. No es una entrada de stock. |
+
+La migración 2 → 3 crea un lote legado por producto y copia los saldos actuales, sin tocar costos ni documentos. Las asignaciones de operaciones previas quedan marcadas de origen desconocido; no se fabrican recepciones ni movimientos históricos por lote. Nuevas operaciones registran ambas capas en una sola transacción. [Políticas y límites](opcionales.md).
