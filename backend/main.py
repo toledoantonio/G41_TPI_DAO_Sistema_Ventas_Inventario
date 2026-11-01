@@ -10,7 +10,7 @@ from frontend.app import Aplicacion
 
 
 def main():
-    parser = argparse.ArgumentParser(description="G41 · Catálogo y logística con SQLite 3")
+    parser = argparse.ArgumentParser(description="G41 · Ventas, inventario, compras sugeridas y lotes con SQLite 3")
     parser.add_argument("--db", type=Path, help="Archivo SQLite 3; por defecto se guarda en data/")
     parser.add_argument("--demo", action="store_true", help="Usar base separada con datos iniciales de demostración")
     argumentos = parser.parse_args()

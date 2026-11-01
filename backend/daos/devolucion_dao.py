@@ -26,11 +26,11 @@ class DevolucionDAO:
         ).lastrowid
 
     def guardar_detalle(self, devolucion_id, detalle):
-        self.cx.execute(
+        return self.cx.execute(
             """INSERT INTO detalle_devolucion (devolucion_id, detalle_venta_id, cantidad, condicion)
                VALUES (?, ?, ?, ?)""",
             (devolucion_id, detalle.detalle_venta_id, detalle.cantidad, detalle.condicion),
-        )
+        ).lastrowid
 
     def obtener(self, identificador):
         fila = self.cx.execute("SELECT * FROM devolucion WHERE id = ?", (identificador,)).fetchone()

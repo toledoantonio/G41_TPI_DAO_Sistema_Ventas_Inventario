@@ -45,6 +45,12 @@ def enviar(s, cd, local, producto, cantidad, numero):
     return bulto
 
 
+def quitar_esquema_lotes(cx):
+    """Eliminar solo el esquema nuevo al construir fixtures de versiones anteriores."""
+    for tabla in ("movimiento_lote", "devolucion_lote", "venta_lote", "bulto_lote", "compra_lote", "existencia_lote", "lote", "detalle_compra_sugerida", "orden_compra_sugerida"):
+        cx.execute(f"DROP TABLE IF EXISTS {tabla}")
+
+
 def convertir_a_base_anterior(s):
     """Simula el esquema previo a ventas/costos, manteniendo los documentos reales."""
     ruta = s.db.ruta
@@ -54,6 +60,7 @@ def convertir_a_base_anterior(s):
         cx.execute("ALTER TABLE contenido_bulto DROP COLUMN costo_centavos")
         for tabla in ("movimiento_caja", "comprobante", "cobro", "detalle_venta", "venta"):
             cx.execute(f"DROP TABLE {tabla}")
+        quitar_esquema_lotes(cx)
         cx.execute("PRAGMA user_version = 0")
     return ruta
 
@@ -91,7 +98,7 @@ def test_migracion_reconstruye_compras_reservas_y_verificacion(datos):
     assert s.historial_bulto(bulto) == historial
     assert sum(f["valor_disponible_centavos"] for f in s.listar("inventario")) == 240000
     with s.db.conectar() as cx:
-        assert cx.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert cx.execute("PRAGMA user_version").fetchone()[0] == 3
     # La segunda apertura no vuelve a migrar ni modifica los costos históricos.
     BaseDatos.reset_for_testing()
     s = Sistema(ruta)
@@ -146,6 +153,7 @@ def test_migracion_respeta_costos_historicos_de_ventas_existentes(datos):
     venta = s.registrar_venta(local, [(producto, 2)], [("EFECTIVO", "300")])
     comprobante = s.comprobante_venta(venta)
     with s.db.transaccion() as cx:
+        quitar_esquema_lotes(cx)
         cx.execute("PRAGMA user_version = 0")
     ruta = s.db.ruta
     BaseDatos.reset_for_testing()
@@ -172,6 +180,7 @@ def test_migracion_conserva_bultos_ya_costeados_y_concilia_remanente(datos):
         cx.execute("UPDATE contenido_bulto SET costo_centavos = 8000 WHERE bulto_id = ?", (b2,))
         cx.execute("UPDATE existencia SET costo_centavos = 8000 WHERE ubicacion_id = ?", (cd,))
         cx.execute("UPDATE existencia SET costo_centavos = 7500 WHERE ubicacion_id = ?", (local,))
+        quitar_esquema_lotes(cx)
         cx.execute("PRAGMA user_version = 0")
     ruta = s.db.ruta
     BaseDatos.reset_for_testing()
@@ -188,6 +197,7 @@ def test_migracion_no_inventa_ajuste_sin_stock_remanente(datos):
     bulto = enviar(s, cd, local, producto, 10, "R1")
     with s.db.transaccion() as cx:
         cx.execute("UPDATE contenido_bulto SET costo_centavos = 5000 WHERE bulto_id = ?", (bulto,))
+        quitar_esquema_lotes(cx)
         cx.execute("PRAGMA user_version = 0")
     ruta = s.db.ruta
     BaseDatos.reset_for_testing()
@@ -216,7 +226,7 @@ def test_inicializaciones_concurrentes_comparten_gestor(tmp_path):
         barrera.wait(timeout=5)
         db = BaseDatos(ruta)
         with db.conectar() as cx:
-            assert cx.execute("PRAGMA user_version").fetchone()[0] == 2
+            assert cx.execute("PRAGMA user_version").fetchone()[0] == 3
         return db
 
     try:

@@ -97,23 +97,31 @@ class ReportesDAO:
         ), valores AS (
             SELECT ubicacion_id, producto_id, SUM(reserva) AS reserva, SUM(pendiente) AS pendiente,
               SUM(rechazo) AS rechazo FROM logistica GROUP BY ubicacion_id, producto_id
+        ), util AS (
+            SELECT e.ubicacion_id, l.producto_id, SUM(e.disponible) AS vendible
+            FROM existencia_lote e JOIN lote l ON l.id = e.lote_id
+            WHERE l.vencimiento IS NULL OR l.vencimiento >= :hoy GROUP BY e.ubicacion_id, l.producto_id
         ), detalle AS (
             SELECT u.id AS ubicacion_id, u.nombre AS ubicacion, pr.id AS producto_id, pr.codigo, pr.descripcion,
               COALESCE(e.disponible, 0) AS disponible, COALESCE(e.reservado, 0) AS reservado,
               COALESCE(e.pendiente, 0) AS pendiente, COALESCE(e.rechazado, 0) AS rechazado,
               COALESCE(e.minimo, 0) AS minimo,
-              MAX(0, COALESCE(e.minimo, 0) - COALESCE(e.disponible, 0)) AS faltante,
+              COALESCE(ut.vendible, 0) AS vendible,
+              COALESCE(e.disponible, 0) - COALESCE(ut.vendible, 0) AS vencido,
+              MAX(0, COALESCE(e.minimo, 0) - COALESCE(ut.vendible, 0)) AS faltante,
               COALESCE(e.disponible, 0) * COALESCE(e.costo_centavos, 0) AS valor_disponible_centavos,
               COALESCE(v.reserva, 0) AS valor_reservado_centavos, COALESCE(v.pendiente, 0) AS valor_pendiente_centavos,
               COALESCE(v.rechazo, 0) AS valor_bloqueado_centavos
               FROM ubicacion u CROSS JOIN producto pr
               LEFT JOIN existencia e ON e.ubicacion_id = u.id AND e.producto_id = pr.id
               LEFT JOIN valores v ON v.ubicacion_id = u.id AND v.producto_id = pr.id
+              LEFT JOIN util ut ON ut.ubicacion_id = u.id AND ut.producto_id = pr.id
               WHERE (:ubicacion IS NULL OR u.id = :ubicacion)
         ) """
         detalle = self._seccion("Existencias, faltantes y valorización por producto", [
             ("ubicacion", "Ubicación"), ("codigo", "Producto"), ("descripcion", "Descripción"),
-            ("disponible", "Disponible"), ("reservado", "Reservado"), ("pendiente", "Pendiente"),
+            ("disponible", "Disp. registrado"), ("reservado", "Reservado"), ("pendiente", "Pendiente"),
+            ("vendible", "Vendible no vencido"), ("vencido", "Vencido sin vender"),
             ("rechazado", "Bloqueado"), ("minimo", "Mínimo"), ("faltante", "Faltante"),
             ("valor_disponible_centavos", "Valor disponible"), ("valor_reservado_centavos", "Valor reservado"),
             ("valor_pendiente_centavos", "Valor pendiente"), ("valor_bloqueado_centavos", "Valor bloqueado"),

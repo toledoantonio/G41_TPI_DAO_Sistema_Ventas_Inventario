@@ -49,3 +49,11 @@ La inmutabilidad exigida es del historial de estados en la aplicación y la base
 La devolución acepta varios detalles y condiciones; consolida repetidos y controla el acumulado, incluidas operaciones concurrentes. El stock vendible reingresa al costo original y se promedia con el Disponible actual. NO_VENDIBLE ingresa a Rechazado con causa DEVOLUCION; se distingue del rechazo logístico por su documento y causa. No se implementa recuperación ni destrucción automática. El reintegro, documento y stock se confirman juntos.
 
 Los reportes usan fecha real de cada evento, fechas inclusivas y una instantánea de lectura para todas las secciones. El margen solo revierte costo si vuelve mercadería vendible. No se agregan gastos ni integración fiscal. Definiciones, filtros y exportación: [reportes](reportes.md). El esquema pasa a versión 2 para incorporar devoluciones; las bases de versión 1 conservan sus costos sin repetir la reconstrucción económica.
+
+## Opcionales seleccionados: compras sugeridas y lotes/vencimientos
+
+Se implementan exactamente dos familias opcionales de la consigna. Órdenes sugeridas calculadas por faltante neto, sin generar stock hasta recibir una compra real. Su proveedor se selecciona explícitamente, pueden cancelarse y se reciben completas. La transacción serializa generación y recepción para evitar duplicación.
+
+Lotes por producto con código normalizado y vencimiento opcional; FEFO para preparación y venta, manteniendo CPP como regla económica. Vencimiento inclusivo al día civil registrado en la operación. Disponible registrado conserva físico/valor; Vendible excluye vencidos y define faltantes. No se modifica automáticamente el historial ni se elimina stock. La devolución exige lote de la venta cuando haya ambigüedad, y un vencido solo reingresa como NO_VENDIBLE.
+
+Esquema 3: stock anterior identificado como LEGADO-SIN-IDENTIFICAR, sin vencimiento inventado; la nueva traza parte de MIGRACION. No se reconstruye un origen físico que no se registró. No se incluyen series por unidad ni un proceso de destrucción/recuperación. [Reglas completas y fórmulas](opcionales.md).

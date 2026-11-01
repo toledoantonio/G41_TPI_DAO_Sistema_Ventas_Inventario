@@ -22,7 +22,7 @@ Agrupa por producto/local y ordena por unidades netas descendentes, luego margen
 
 ## REP03 — Existencias y mínimos
 
-Foto **actual**, sin filtro temporal. Detalle por ubicación/producto y resumen por ubicación con productos bajo mínimo, unidades faltantes y valorización. Faltante = máximo entre cero y mínimo − Disponible. Incluye combinaciones de catálogo sin fila de stock y productos con saldo cero.
+Foto **actual**, sin filtro temporal. Detalle por ubicación/producto y resumen por ubicación con productos bajo mínimo, unidades faltantes y valorización. Con lotes/vencimientos, faltante = máximo entre cero y mínimo − Vendible no vencido. Se muestran Disponible registrado, Vendible y Vencido, sin eliminar mercadería por vencer. Incluye combinaciones de catálogo sin fila de stock y productos con saldo cero.
 
 Disponible se valora al promedio vigente. Reservado se valora desde bultos Preparados/Precintados, Pendiente desde bultos Recibidos, y bloqueado desde bultos Rechazados y devoluciones NO_VENDIBLE. Esos orígenes se agregan antes de unirlos para evitar duplicaciones. El tránsito queda fuera del físico de ubicaciones y no se suma como disponible. Importes unitarios redondeados al centavo.
 

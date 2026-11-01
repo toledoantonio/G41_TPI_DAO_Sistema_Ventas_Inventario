@@ -116,3 +116,17 @@ Las propuestas históricas se interpretan según las decisiones de implementaci�
 - **Errores:** período inválido o referencias incorrectas; solicitar corrección.
 - **Resultado:** consultas con agregaciones, sin modificar operaciones. Cobros mixtos no duplican total de venta; mínimos incluyen saldo cero; rechazo no equivale automáticamente a pérdida económica.
 - **Implementado:** presentación tabular por secciones y CSV. Devoluciones por fecha real; margen histórico con reversión de costo solo para vendibles. Existencias es una foto actual. El medio filtra únicamente la sección caja. Véanse [definiciones](reportes.md).
+
+## CU11 — Generar y recibir compra sugerida (opcional)
+
+- **Actor:** responsable de compras. **Entrada:** CD, proveedor elegido y referencia única.
+- **Flujo:** consultar faltantes netos, generar una orden SUGERIDA sin cambiar stock, consultar sus productos y preparar la recepción. Registrar una compra real completa con los productos/cantidades de la orden, costos y lotes; confirmar documento, inventario, trazabilidad y estado RECIBIDA juntos.
+- **Reglas:** mínimos locales y pedidos no se duplican; descuentan stock no vencido, bultos en camino y sugerencias abiertas. Recalcular bajo transacción al generar. No recibir dos veces ni usar otro proveedor/CD o cantidades distintas. Una sugerencia pendiente puede cancelarse sin borrar historia ni afectar stock.
+- **Resultado:** necesidad documentada y, al recibir, compra vinculada. No incluye cotizaciones, envío al proveedor ni recepción parcial. [Fórmula y decisiones](opcionales.md).
+
+## CU12 — Registrar y trazar lotes/vencimientos (opcional)
+
+- **Actor:** compras, operador logístico y vendedor. **Entrada:** producto, código de lote y vencimiento opcional al recibir.
+- **Flujo:** registrar lote o reutilizarlo conservando su fecha; asignar unidades FEFO a bultos y ventas; consultar saldos y movimientos por lote. En devoluciones seleccionar el lote vendido cuando existan varios y controlar su acumulado.
+- **Errores:** fecha inválida, compra vencida, cambio de vencimiento del mismo lote, stock no vencido insuficiente o retorno de lote ajeno. Un vencido no se despacha, vende ni devuelve como vendible. Si venció en tránsito, recibir mantiene Pendiente y verificar no lo habilita.
+- **Resultado:** trazabilidad actual persistente, con libro inmutable y coincidencia entre saldos agregados y por lote. El stock anterior conserva origen desconocido; no se inventan fechas históricas. No incluye series por unidad ni destrucción/recuperación de vencidos. [Límites](opcionales.md).

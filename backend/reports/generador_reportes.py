@@ -33,7 +33,7 @@ class GeneradorReportes:
     def __init__(self, conexion):
         self.cx = conexion
 
-    def generar(self, tipo, desde=None, hasta=None, ubicacion_id=None, medio_pago=None):
+    def generar(self, tipo, desde=None, hasta=None, ubicacion_id=None, medio_pago=None, hoy=None):
         if tipo not in REPORTES:
             raise ErrorDominio("Seleccione uno de los cuatro reportes disponibles.")
         desde, hasta = _fecha(desde), _fecha(hasta)
@@ -49,14 +49,15 @@ class GeneradorReportes:
         medio = str(medio_pago).strip().upper() if medio_pago else None
         if medio and tipo != "ventas_ingresos":
             raise ErrorDominio("El filtro de medio de pago solo corresponde a ventas e ingresos.")
-        parametros = {"desde": desde, "hasta": hasta, "ubicacion": ubicacion, "medio": medio}
+        parametros = {"desde": desde, "hasta": hasta, "ubicacion": ubicacion, "medio": medio,
+                      "hoy": hoy or date.today().isoformat()}
         secciones = ReportesDAO(self.cx).consultar(tipo, parametros)
         return {
             "titulo": REPORTES[tipo], "tipo": tipo, "filtros": parametros, "secciones": secciones,
             "notas": {
                 "ventas_ingresos": "El medio filtra solo caja. El total comercial cuenta cada venta una vez. Devoluciones por su fecha real.",
                 "ranking_margen": "Margen estimado, no utilidad contable. Solo la devolución vendible revierte costo; la no vendible conserva costo no recuperado. Eventos por su fecha real.",
-                "existencias_minimos": "Foto actual, sin filtro temporal. Promedio solo del Disponible. Bloqueado no habilita venta. Valor unitario redondeado al centavo.",
+                "existencias_minimos": "Foto actual. Disponible registrado conserva el físico; Vendible excluye lotes vencidos y define faltantes. El promedio valora el Disponible registrado, sin merma automática.",
                 "rechazos_precinto": "Período de decisión final. Tasa = rechazados / (verificados + rechazados). Valor comprometido no equivale a pérdida. Tránsito: despacho a recepción.",
             }[tipo],
         }

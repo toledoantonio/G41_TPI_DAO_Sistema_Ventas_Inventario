@@ -40,7 +40,9 @@ class VistaDevoluciones(ttk.Frame):
         self.detalle_form = Formulario(nuevo, [
             ("cantidad", "Unidades del detalle seleccionado", None),
             ("condicion", "Condición inspeccionada", lambda: [("VENDIBLE", "Vendible"), ("NO_VENDIBLE", "No vendible / bloqueada")]),
+            ("lote", "Lote retornado", self.opciones_lotes),
         ])
+        self.originales.arbol.bind("<<TreeviewSelect>>", lambda _: self.detalle_form.actualizar())
         self.detalle_form.pack(fill="x")
         acciones = ttk.Frame(nuevo)
         acciones.pack(fill="x", pady=4)
@@ -52,6 +54,7 @@ class VistaDevoluciones(ttk.Frame):
         self.renglones = Tabla(nuevo, [
             ("detalle_id", "Detalle"), ("codigo", "Producto"), ("cantidad", "Cantidad"),
             ("condicion", "Condición"), ("reintegro_centavos", "Reintegro original"),
+            ("lote", "Lote"),
         ], alto=3)
         self.renglones.pack(fill="both", expand=True)
         self.boton_confirmar = ttk.Button(nuevo, text="Confirmar devolución, stock y reintegro", command=lambda: app.ejecutar(self.confirmar))
@@ -84,9 +87,16 @@ class VistaDevoluciones(ttk.Frame):
         if self.venta_cargada is None or self.formulario.obtener("venta") != self.venta_cargada:
             raise ErrorDominio("Cargue la venta seleccionada antes de agregar o confirmar detalles.")
 
+    def opciones_lotes(self):
+        if not self.originales.arbol.selection():
+            return []
+        return [(f["lote_id"], f"{f['codigo']} · devolvible {f['restante']} · vence {f['vencimiento'] or 'sin fecha'}")
+                for f in self.sistema.lotes_devolvibles(self.originales.seleccionada()["id"]) if f["restante"] > 0]
+
     def agregar(self):
         self.validar_venta_cargada()
         original = self.originales.seleccionada()
+        self.detalle_form.actualizar()
         cantidad = entero(self.detalle_form.obtener("cantidad"))
         agregada = sum(i["cantidad"] for i in self.items if i["detalle_id"] == original["id"])
         if cantidad + agregada > original["restante"]:
@@ -95,6 +105,7 @@ class VistaDevoluciones(ttk.Frame):
             "id": len(self.items), "detalle_id": original["id"], "codigo": original["codigo"],
             "cantidad": cantidad, "condicion": self.detalle_form.obtener("condicion"),
             "reintegro_centavos": cantidad * original["precio_unitario_centavos"],
+            "lote_id": self.detalle_form.obtener("lote"), "lote": self.detalle_form.variables["lote"].get(),
         })
         self.detalle_form.limpiar()
         self.refrescar_items()
@@ -114,7 +125,7 @@ class VistaDevoluciones(ttk.Frame):
         f = self.formulario
         identificador = self.sistema.registrar_devolucion(
             self.venta_cargada, f.obtener("local"),
-            [(i["detalle_id"], i["cantidad"], i["condicion"]) for i in self.items],
+            [(i["detalle_id"], i["cantidad"], i["condicion"], i["lote_id"]) for i in self.items],
             f.obtener("medio"), f.obtener("motivo"), f.obtener("referencia"),
         )
         self.items.clear()

@@ -15,6 +15,7 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - [Patrones aplicados y ubicación en el código](docs/patrones.md).
 - [Cobertura de requisitos obligatorios](docs/alcance_verificado.md).
 - [Definiciones y filtros de los cuatro reportes](docs/reportes.md).
+- [Dos opcionales: compras sugeridas y lotes/vencimientos](docs/opcionales.md).
 
 ## Funcionalidades implementadas
 
@@ -28,6 +29,8 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
 - **Devoluciones parciales vinculadas a ventas:** cantidades acumuladas, referencia única, reintegro al precio original y reingreso vendible o bloqueado, con stock y caja en una transacción.
 - **Cuatro reportes no triviales** con agregaciones, filtros y exportación CSV: ventas/ingresos, ranking/margen, existencias/mínimos y rechazos por precinto.
+- **Órdenes de compra sugeridas por faltantes** de locales y CD, con cobertura de pedidos/envíos/compras pendientes, recepción completa vinculada a una compra real y cancelación sin borrar documentos.
+- **Lotes con vencimiento opcional**, selección FEFO, bloqueo de vencidos para venta y trazabilidad en compras, bultos y devoluciones. No incluye series individuales.
 
 La aplicación está desarrollada en **Python**, con interfaz de escritorio **Tkinter/ttk** (`frontend/`) y persistencia en **SQLite 3**.
 
@@ -60,6 +63,10 @@ Para probar el flujo completo:
 5. En **8. Reportes**, elegir uno de los cuatro reportes, filtros y **Generar reporte**. El filtro de medio afecta solo la sección de caja. Existencias muestra la situación actual y no admite fechas históricas. Cada sección tiene una pestaña; el resultado puede exportarse a CSV.
 6. Cerrar y reabrir con la misma base: ventas, devoluciones, caja e inventario se conservan. La carga inicial de demo no vuelve a repetirse.
 
+Para los opcionales, configurar mínimos y abrir **9. Compras / lotes**. Consultar faltantes, elegir proveedor y generar una sugerencia. **Preparar recepción en Compras** vincula la orden con la pestaña 2; ingresar allí sus productos/cantidades y costos/lotes reales para recibirla. Los lotes se registran en cada renglón de compra, con vencimiento opcional. La segunda sección de la pestaña 9 muestra saldos y trazabilidad. Véanse las [reglas y límites](docs/opcionales.md).
+
+En inventario, **Disponible registrado** es el saldo físico; **Vendible** descuenta lotes vencidos y es la cantidad usada para vender y calcular faltantes. Vencer no elimina unidades ni crea una merma automática. Las bases anteriores se actualizan a versión 3 con saldos identificados como legado de origen desconocido, sin inventar fechas ni lotes históricos.
+
 ## Verificación
 
 Instalar la dependencia de pruebas (la aplicación no requiere paquetes externos):
@@ -79,7 +86,7 @@ Al abrir una base anterior se reconstruyen los costos desde compras y movimiento
 
 - **State (Cap. 16.2):** `Bulto` delega sus acciones en `EstadoBulto(ABC)` y sus seis estados concretos. Cada estado determina la transición válida e invoca `contexto.cambiar_estado(...)` o rechaza la operación.
 - **Singleton (Cap. 15.3):** `BaseDatos` garantiza una única instancia del gestor de conexiones y transacciones SQLite mediante `__new__`, `_instance`, `_initialized` y `reset_for_testing()`.
-- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO`, `DevolucionDAO`, `ReportesDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
+- **DAO (Cap. 13.10):** `ProductoDAO`, `BultoDAO`, `CatalogoDAO`, `OperacionesDAO`, `VentaDAO`, `DevolucionDAO`, `ReportesDAO`, `LoteDAO`, `CompraSugeridaDAO` y `ConsultasDAO` concentran el acceso a SQLite compartiendo la transacción del servicio.
 
 La [justificación técnica](docs/patrones.md) identifica participantes, archivos y pruebas.
 

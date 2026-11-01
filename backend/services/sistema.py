@@ -11,6 +11,8 @@ from backend.daos.operaciones_dao import OperacionesDAO
 from backend.daos.producto_dao import ProductoDAO
 from backend.daos.venta_dao import VentaDAO
 from backend.daos.devolucion_dao import DevolucionDAO
+from backend.daos.lote_dao import LoteDAO
+from backend.daos.compra_sugerida_dao import CompraSugeridaDAO
 from backend.models.devoluciones import Devolucion
 from backend.database.config import BaseDatos
 from backend.models.entidades import (
@@ -24,6 +26,7 @@ from backend.models.entidades import (
     Ubicacion,
     Venta,
     centavos,
+    consolidar,
     codigo,
     entero,
     texto,
@@ -56,7 +59,19 @@ class Sistema:
 
     def listar(self, consulta):
         with self.db.conectar() as cx:
-            return ConsultasDAO(cx).listar(consulta)
+            cx.execute("BEGIN")
+            hoy = ahora()[:10]
+            if consulta == "lotes":
+                return LoteDAO(cx).listar(hoy)
+            if consulta == "compras_sugeridas":
+                return CompraSugeridaDAO(cx).listar()
+            filas = ConsultasDAO(cx).listar(consulta)
+            if consulta == "inventario":
+                for fila in filas:
+                    fila["vendible"] = LoteDAO(cx).vendible(fila["ubicacion_id"], fila["producto_id"], hoy)
+                    fila["vencido"] = fila["disponible"] - fila["vendible"]
+                    fila["faltante"] = max(0, fila["minimo"] - fila["vendible"])
+            return filas
 
     def guardar_ubicacion(self, cod, nombre, direccion, tipo, identificador=None):
         ubicacion = Ubicacion.crear(cod, nombre, direccion, tipo, identificador)
@@ -98,16 +113,25 @@ class Sistema:
             ProductoDAO(cx).obtener(producto_id)
             dao.configurar_minimo(ubicacion_id, producto_id, minimo)
 
-    def registrar_compra(self, referencia, proveedor_id, cd_id, detalles):
-        """Detalles: (producto_id, cantidad entera, costo unitario decimal)."""
+    def registrar_compra(self, referencia, proveedor_id, cd_id, detalles, orden_sugerida_id=None):
+        """Detalles: (producto, cantidad, costo[, lote, vencimiento]); un costo por producto."""
         compra = Compra(referencia, proveedor_id, cd_id, ahora())
-        for producto_id, cantidad, costo in detalles:
+        lotes = []
+        for renglon in detalles:
+            if len(renglon) not in (3, 5):
+                raise ErrorDominio("La compra requiere producto, cantidad y costo; lote y vencimiento son opcionales juntos.")
+            producto_id, cantidad, costo = renglon[:3]
             compra.agregar_detalle(producto_id, cantidad, costo)
+            lote, vencimiento = renglon[3:] if len(renglon) == 5 else (None, None)
+            lotes.append((entero(producto_id, "Producto"), entero(cantidad), lote, vencimiento))
         compra.validar_con_detalles()
         with self._operacion() as cx:
             dao = CatalogoDAO(cx)
             dao.proveedor(compra.proveedor_id)
             dao.ubicacion(compra.cd_id, "CD")
+            if orden_sugerida_id is not None:
+                orden_sugerida_id = entero(orden_sugerida_id, "Orden sugerida")
+                CompraSugeridaDAO(cx).validar_recepcion(orden_sugerida_id, compra)
             documentos = OperacionesDAO(cx)
             compra_id = documentos.crear_compra(compra.referencia, compra.proveedor_id, compra.cd_id, compra.fecha)
             for detalle in compra.detalles:
@@ -122,6 +146,9 @@ class Sistema:
                     disponible=detalle.cantidad,
                     costo_ingreso_centavos=detalle.costo_centavos,
                 )
+            LoteDAO(cx).comprar(compra_id, compra.cd_id, lotes, compra.fecha)
+            if orden_sugerida_id is not None:
+                CompraSugeridaDAO(cx).recibir(orden_sugerida_id, compra_id)
             return compra_id
 
     def crear_orden(self, cd_id, local_id, detalles):
@@ -170,6 +197,7 @@ class Sistema:
                     reservado=item.cantidad,
                 )
                 documentos.contenido_bulto(bulto.id, item.producto_id, item.cantidad, item.costo_centavos)
+                LoteDAO(cx).preparar(bulto.id, orden["cd_id"], item.producto_id, item.cantidad, fecha)
             BultoDAO(cx).registrar_estado(bulto, None, fecha, "Preparación y reserva en CD")
             return bulto.id
 
@@ -233,6 +261,8 @@ class Sistema:
                         rechazado=cantidad if bulto.estado == "Rechazado" else 0,
                         costo_ingreso_centavos=item["costo_centavos"] if habilitar else None,
                     )
+            LoteDAO(cx).operar_bulto(bulto_id, accion, fila["cd_id"], fila["local_id"], fecha,
+                                    habilitar=bulto.estado == "Verificado")
             bultos.registrar_estado(bulto, anterior, fecha, observacion)
 
     def historial_bulto(self, identificador):
@@ -263,7 +293,7 @@ class Sistema:
             for detalle in venta.detalles:
                 prod = productos_dao.obtener(detalle.producto_id)
                 existencia = catalogo.existencia(venta.local_id, detalle.producto_id)
-                if detalle.cantidad > existencia["disponible"]:
+                if detalle.cantidad > LoteDAO(cx).vendible(venta.local_id, detalle.producto_id, fecha[:10]):
                     raise ErrorDominio(f"Existencia disponible insuficiente para el producto {prod['codigo']}.")
                 detalle.precio_unitario_centavos = prod["precio_centavos"]
                 detalle.costo_unitario_centavos = existencia["costo_centavos"]
@@ -271,7 +301,7 @@ class Sistema:
             ventas_dao = VentaDAO(cx)
             venta.id = ventas_dao.crear_venta(venta)
             for detalle in venta.detalles:
-                ventas_dao.guardar_detalle(venta.id, detalle)
+                detalle_id = ventas_dao.guardar_detalle(venta.id, detalle)
                 catalogo.mover(
                     venta.local_id,
                     detalle.producto_id,
@@ -280,6 +310,7 @@ class Sistema:
                     fecha,
                     disponible=-detalle.cantidad,
                 )
+                LoteDAO(cx).vender(detalle_id, venta.local_id, detalle.producto_id, detalle.cantidad, venta.id, fecha)
             for cobro in venta.cobros:
                 cobro.id = ventas_dao.guardar_cobro(venta.id, cobro, fecha)
                 ventas_dao.registrar_movimiento_caja(
@@ -317,16 +348,22 @@ class Sistema:
             return DevolucionDAO(cx).originales(venta_id)
 
     def registrar_devolucion(self, venta_id, local_id, detalles, medio_reintegro, motivo, referencia):
-        """Detalles: (detalle_venta_id, cantidad, VENDIBLE/NO_VENDIBLE).
+        """Detalles: (detalle_venta_id, cantidad, VENDIBLE/NO_VENDIBLE[, lote_id]).
 
         La referencia identifica una operación y evita duplicar reintentos.
         La mercadería bloqueada ingresa a Rechazado, con causa DEVOLUCION.
+        Con varios lotes en la venta se exige indicar el lote retornado.
         """
         devolucion = Devolucion(venta_id, local_id, referencia, motivo, medio_reintegro, ahora())
-        cantidades = {}
-        for detalle_id, cantidad, condicion in detalles:
+        cantidades, solicitudes = {}, []
+        for renglon in detalles:
+            if len(renglon) not in (3, 4):
+                raise ErrorDominio("Indique detalle original, cantidad, condición y opcionalmente lote.")
+            detalle_id, cantidad, condicion = renglon[:3]
             clave = (entero(detalle_id, "Detalle de venta"), codigo(condicion))
             cantidades[clave] = entero(cantidades.get(clave, 0) + entero(cantidad))
+            lote = entero(renglon[3], "Lote") if len(renglon) == 4 and renglon[3] is not None else None
+            solicitudes.append((clave[0], entero(cantidad), clave[1], lote))
         with self._operacion() as cx:
             venta = VentaDAO(cx).obtener(devolucion.venta_id)
             CatalogoDAO(cx).ubicacion(devolucion.local_id, "LOCAL")
@@ -344,10 +381,12 @@ class Sistema:
                     raise ErrorDominio("La devolución acumulada supera la cantidad vendida.")
                 devolucion.agregar_detalle(original, cantidad, condicion)
             devolucion.validar()
+            plan_lotes = LoteDAO(cx).plan_devolucion(solicitudes, devolucion.fecha[:10])
             identificador = dao.crear(devolucion)
-            productos = {}
+            productos, retorno_lotes = {}, []
             for detalle in devolucion.detalles:
-                dao.guardar_detalle(identificador, detalle)
+                detalle_id = dao.guardar_detalle(identificador, detalle)
+                retorno_lotes.append((detalle_id, detalle.condicion, plan_lotes[detalle.detalle_venta_id, detalle.condicion]))
                 saldo = productos.setdefault(detalle.producto_id, {
                     "disponible": 0, "rechazado": 0, "costo": detalle.costo_unitario_centavos,
                 })
@@ -359,6 +398,7 @@ class Sistema:
                     disponible=saldo["disponible"], rechazado=saldo["rechazado"],
                     costo_ingreso_centavos=saldo["costo"] if saldo["disponible"] else None,
                 )
+            LoteDAO(cx).devolver(identificador, devolucion.local_id, retorno_lotes, devolucion.fecha)
             # Un producto de precio original cero se devuelve sin egreso ficticio.
             if devolucion.total_centavos:
                 VentaDAO(cx).registrar_movimiento_caja(
@@ -377,4 +417,48 @@ class Sistema:
         with self.db.conectar() as cx:
             # Todas las secciones ven la misma instantánea, aun con otra ventana escribiendo.
             cx.execute("BEGIN")
-            return GeneradorReportes(cx).generar(tipo, desde, hasta, ubicacion_id, medio_pago)
+            return GeneradorReportes(cx).generar(tipo, desde, hasta, ubicacion_id, medio_pago, hoy=ahora()[:10])
+
+    def sugerencias_compra(self, cd_id):
+        with self.db.conectar() as cx:
+            cx.execute("BEGIN")
+            CatalogoDAO(cx).ubicacion(entero(cd_id, "CD"), "CD")
+            return CompraSugeridaDAO(cx).necesidades(cd_id, ahora()[:10])
+
+    def generar_orden_compra(self, cd_id, proveedor_id, referencia, detalles=None):
+        cd_id, proveedor_id = entero(cd_id, "CD"), entero(proveedor_id, "Proveedor")
+        referencia = codigo(referencia)
+        with self._operacion() as cx:
+            CatalogoDAO(cx).ubicacion(cd_id, "CD")
+            CatalogoDAO(cx).proveedor(proveedor_id)
+            dao = CompraSugeridaDAO(cx)
+            necesidades = {f["producto_id"]: f["cantidad_sugerida"] for f in dao.necesidades(cd_id, ahora()[:10])}
+            items = consolidar(detalles) if detalles is not None else {p: c for p, c in necesidades.items() if c > 0}
+            if not items:
+                raise ErrorDominio("No hay faltantes sin cobertura para generar una orden sugerida.")
+            # La sugerencia debe poder recibirse con los límites de cantidad de Compra.
+            items = {producto: entero(cantidad) for producto, cantidad in items.items()}
+            if any(cantidad > necesidades.get(producto, 0) for producto, cantidad in items.items()):
+                raise ErrorDominio("La orden supera el faltante actual o incluye un producto sin necesidad de compra.")
+            return dao.crear(referencia, cd_id, proveedor_id, ahora(), items)
+
+    def obtener_orden_compra(self, identificador):
+        with self.db.conectar() as cx:
+            return CompraSugeridaDAO(cx).obtener(entero(identificador, "Orden sugerida"))
+
+    def cancelar_orden_compra(self, identificador):
+        with self._operacion() as cx:
+            CompraSugeridaDAO(cx).cancelar(entero(identificador, "Orden sugerida"))
+
+    def lotes_devolvibles(self, detalle_id):
+        with self.db.conectar() as cx:
+            return LoteDAO(cx).devolvibles(entero(detalle_id, "Detalle de venta"))
+
+    def lotes_bulto(self, identificador):
+        with self.db.conectar() as cx:
+            BultoDAO(cx).obtener(entero(identificador, "Bulto"))
+            return LoteDAO(cx).bulto(identificador)
+
+    def trazabilidad_lote(self, identificador):
+        with self.db.conectar() as cx:
+            return LoteDAO(cx).traza(entero(identificador, "Lote"))

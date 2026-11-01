@@ -6,6 +6,7 @@ import sqlite3
 from threading import RLock
 
 from backend.database.migraciones import migrar_costos
+from backend.database.migracion_lotes import migrar_lotes
 
 
 class BaseDatos:
@@ -44,8 +45,7 @@ class BaseDatos:
                     esquema = Path(__file__).with_name("esquema.sql").read_text(encoding="utf-8")
                     conexion.executescript("BEGIN IMMEDIATE;\n" + esquema)
                     migrar_costos(conexion)
-                    # El esquema añade devoluciones sin reconstruir costos ya migrados.
-                    conexion.execute("PRAGMA user_version = 2")
+                    migrar_lotes(conexion)
                     conexion.commit()
                 except Exception:
                     conexion.rollback()
