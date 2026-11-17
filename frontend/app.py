@@ -108,7 +108,7 @@ class Formulario(ttk.Frame):
             if clave in fechas:
                 widget.configure(validate="key", validatecommand=(self.register(self.teclas_fecha), "%P"))
                 widget.bind("<KeyRelease>", lambda evento, campo=clave: self.formatear_fecha(campo, evento))
-        for columna in range(3):
+        for columna in range(min(3, max(1, len(campos)))):
             self.columnconfigure(columna, weight=1)
         self.actualizar()
 
@@ -339,7 +339,7 @@ class RenglonesCobro(ttk.LabelFrame):
         self.boton_agregar.pack(side="left")
         self.boton_saldar = ttk.Button(
             botones,
-            text="Saldar resto con medio seleccionado",
+            text="Saldar resto",
             command=lambda: app.ejecutar(self.saldar_resto),
         )
         self.boton_saldar.pack(side="left", padx=8)
@@ -933,48 +933,62 @@ class Aplicacion:
 
     def crear_ventas(self):
         panel = self.panel("6. Ventas y caja")
-        panel.columnconfigure(0, weight=1)
-        panel.rowconfigure(2, weight=1)
-        panel.rowconfigure(3, weight=1)
-        panel.rowconfigure(5, weight=1)
+        secciones = ttk.Notebook(panel)
+        secciones.pack(fill="both", expand=True)
+        nueva = ttk.Frame(secciones, padding=8)
+        historial = ttk.Frame(secciones, padding=8)
+        secciones.add(nueva, text="Nueva venta")
+        secciones.add(historial, text="Historial y caja")
+
+        nueva.columnconfigure(0, weight=1, uniform="ventas")
+        nueva.columnconfigure(1, weight=1, uniform="ventas")
+        nueva.rowconfigure(2, weight=1)
         ttk.Label(
-            panel,
+            nueva,
             text="Elegí el local, agregá los productos y completá el cobro. Podés usar Saldar resto para cubrir el importe pendiente.",
             style="Ayuda.TLabel", wraplength=910,
-        ).grid(row=0, column=0, sticky="w")
+        ).grid(row=0, column=0, columnspan=2, sticky="w")
         self.venta_form = Formulario(
-            panel,
+            nueva,
             [
                 ("local", "Local de venta", self.opciones("ubicaciones", "LOCAL")),
                 ("comprobante", "N° comprobante (opcional)", None),
             ],
         )
-        self.venta_form.grid(row=1, column=0, sticky="ew")
-        self.venta_items = Renglones(panel, self, al_cambiar=lambda: self.venta_cobros.actualizar_resumen())
-        self.venta_items.grid(row=2, column=0, sticky="nsew")
-        self.venta_cobros = RenglonesCobro(panel, self, self.venta_items)
-        self.venta_cobros.grid(row=3, column=0, sticky="nsew", pady=4)
-        acciones = ttk.Frame(panel)
-        acciones.grid(row=4, column=0, sticky="ew", pady=5)
+        self.venta_form.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.venta_items = Renglones(nueva, self, al_cambiar=lambda: self.venta_cobros.actualizar_resumen())
+        self.venta_items.grid(row=2, column=0, sticky="nsew", padx=(0, 6), pady=4)
+        self.venta_cobros = RenglonesCobro(nueva, self, self.venta_items)
+        self.venta_cobros.grid(row=2, column=1, sticky="nsew", padx=(6, 0), pady=4)
+        acciones_nueva = ttk.Frame(nueva)
+        acciones_nueva.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         self.boton_confirmar_venta = ttk.Button(
-            acciones,
+            acciones_nueva,
             text="Confirmar venta y emitir comprobante",
             style="Principal.TButton",
             command=lambda: self.ejecutar(self.confirmar_venta),
         )
         self.boton_confirmar_venta.pack(side="left")
         ttk.Button(
-            acciones,
-            text="Ver comprobante y detalle",
-            command=lambda: self.ejecutar(self.ver_comprobante),
-        ).pack(side="left", padx=8)
-        ttk.Button(
-            acciones,
+            acciones_nueva,
             text="Ver movimientos de caja",
             command=lambda: self.ejecutar(self.ver_caja),
+        ).pack(side="left", padx=8)
+
+        acciones_hist = ttk.Frame(historial)
+        acciones_hist.pack(fill="x", pady=(0, 6))
+        ttk.Button(
+            acciones_hist,
+            text="Ver comprobante y detalle",
+            command=lambda: self.ejecutar(self.ver_comprobante),
         ).pack(side="left")
+        ttk.Button(
+            acciones_hist,
+            text="Ver movimientos de caja",
+            command=lambda: self.ejecutar(self.ver_caja),
+        ).pack(side="left", padx=8)
         self.ventas = Tabla(
-            panel,
+            historial,
             [
                 ("id", "Venta"),
                 ("comprobante", "Comprobante"),
@@ -985,9 +999,9 @@ class Aplicacion:
                 ("costo_total_centavos", "Costo hist."),
                 ("margen_centavos", "Margen"),
             ],
-            alto=4,
+            alto=12,
         )
-        self.ventas.grid(row=5, column=0, sticky="nsew")
+        self.ventas.pack(fill="both", expand=True)
         self.refrescadores.extend(
             [
                 self.venta_form.actualizar,
