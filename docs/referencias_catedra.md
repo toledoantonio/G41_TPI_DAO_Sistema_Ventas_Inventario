@@ -52,10 +52,10 @@ Se volvieron a leer las cuatro páginas de `dao/Interfaces - UX/Reportes en Pyth
 | --- | --- | --- |
 | Consigna, p. 2 | Al menos cuatro reportes no triviales; sugiere ventas/ingresos, ranking/margen, existencias/mínimos y rechazos por precinto, entre otros. | Se implementan esas cuatro familias, con filtros, sumas, agrupaciones, rankings, tasas y valoración histórica contrastadas con datos conocidos. |
 | Apunte, pp. 1–2 | Ejemplo de informe PDF con título, texto y tabla usando ReportLab; permite adaptar el contenido y formato. | Los resultados tienen título, notas, secciones y tablas. No se afirma haber implementado ese ejemplo PDF. |
-| Apunte, pp. 2–3 | Ejemplo de gráfico Matplotlib incorporado a un PDF. | No se incluyen gráficos en este incremento. Podrían añadirse como otra presentación del mismo resultado. |
+| Apunte, pp. 2–3 | Ejemplo de gráfico Matplotlib incorporado a un PDF. | La pestaña Gráfico presenta los mismos resultados filtrados mediante barras en Tkinter. |
 | Apunte, p. 4 | Presenta `csv` de la biblioteca estándar como opción suficiente para lectura/escritura básica de datos tabulares. | Exportación CSV con filtros, notas, encabezados, secciones e importes. No requiere dependencias adicionales de ejecución. |
 
-La consigna revisada no prescribe PDF, gráficos ni una biblioteca concreta. La elección actual es presentación tabular Tkinter/ttk y CSV. No se atribuye al docente aprobación de los cálculos o de la entrega: las definiciones y decisiones del grupo se detallan en [reportes](reportes.md). La comprobación funcional incluye pruebas de servicios, interfaz, exportación, datos vacíos, filtros, pagos mixtos sin duplicación, devoluciones de otro período y persistencia tras reabrir.
+La consigna deja abierto el formato de presentación. La aplicación ofrece gráficos y tablas en Tkinter/ttk y exportación CSV. Las definiciones y decisiones del grupo se detallan en [reportes](reportes.md). La comprobación funcional incluye pruebas de servicios, interfaz, exportación, datos vacíos, filtros, pagos mixtos sin duplicación, devoluciones de otro período y persistencia tras reabrir.
 
 ## Aplicación a los próximos incrementos
 
