@@ -103,6 +103,63 @@ class TestInterfaz:
         fila_post = next(f for f in self.app.inventario.filas.values() if f["ubicacion_id"] == local)
         assert fila_post["disponible"] == 7
 
+    def test_doble_click_en_agregar_renglon_no_repite_ni_muestra_error(self):
+        renglones = self.app.orden_items
+        renglones.formulario.variables["cantidad"].set("2")
+        with patch("frontend.app.messagebox.showerror") as error:
+            renglones.boton_agregar.invoke()
+            renglones.boton_agregar.invoke()
+            error.assert_not_called()
+        assert [item["cantidad"] for item in renglones.items] == [2]
+        assert renglones.boton_agregar.instate(["disabled"])
+
+    def test_logistica_habilita_solo_la_accion_del_estado_y_agrupa_el_detalle(self):
+        self.app.bultos.arbol.selection_set("0")
+        self.raiz.update()
+        botones = self.app.botones_logistica
+        assert [nombre for nombre, boton in botones.items() if boton.instate(["!disabled"])] == ["despachar"]
+        assert self.app.logistica_form.widgets["precinto"].instate(["readonly"])
+        self.app.boton_detalle_bulto.invoke()
+        detalle = self.app.ventana_bulto
+        assert len(detalle.winfo_children()[0].tabs()) == 3
+        self.app.boton_detalle_bulto.invoke()
+        assert not detalle.winfo_exists()
+        botones["despachar"].invoke()
+        botones["recibir"].invoke()
+        assert [nombre for nombre, boton in botones.items() if boton.instate(["!disabled"])] == ["verificar"]
+        assert self.app.logistica_form.obtener("precinto") == ""
+        assert self.app.bultos.seleccionada()["precinto"] == "PRECINTO-DEMO-01"
+
+    def test_cobro_excesivo_conserva_lo_ya_ingresado(self):
+        renglones = self.app.venta_items
+        renglones.formulario.variables["cantidad"].set("1")
+        renglones.boton_agregar.invoke()
+        cobros = self.app.venta_cobros
+        cobros.formulario.variables["importe"].set("40.00")
+        cobros.boton_agregar.invoke()
+        cobros.formulario.variables["importe"].set("61.00")
+        with patch("frontend.app.messagebox.showerror") as error:
+            cobros.boton_agregar.invoke()
+            assert "60.00" in error.call_args.args[1]
+        assert cobros.total_cobrado_centavos() == 4000
+        renglones.tabla.arbol.selection_set("0")
+        with patch("frontend.app.messagebox.showerror") as error:
+            assert not self.app.ejecutar(renglones.quitar)
+            error.assert_called_once()
+        assert len(renglones.items) == 1
+        cobros.boton_saldar.invoke()
+        assert cobros.total_cobrado_centavos() == 10000
+
+    def test_fechas_aceptan_digitos_y_marcan_fecha_imposible(self):
+        formulario = self.app.reportes_vista.formulario
+        formulario.variables["desde"].set("20261116")
+        assert formulario.obtener("desde") == "2026-11-16"
+        formulario.variables["desde"].set("2026-02-30")
+        with patch("frontend.app.messagebox.showerror") as error:
+            self.app.reportes_vista.boton_generar.invoke()
+            assert "Desde" in error.call_args.args[1]
+        assert formulario.bordes["desde"].cget("background") == "#a21b1b"
+
     def test_demo_no_repite_compra_ni_bulto(self):
         """Verifica que la carga de demostración no duplique registros en una base poblada."""
         assert not cargar_demo(self.s)
@@ -152,6 +209,11 @@ class TestInterfaz:
         vista.originales.arbol.selection_set("0")
         vista.detalle_form.variables["cantidad"].set("1")
         vista.boton_agregar.invoke()
+        with patch("frontend.app.messagebox.showerror") as error:
+            vista.boton_confirmar.invoke()
+            assert "referencia única de devolución" in error.call_args.args[1]
+        assert vista.formulario.bordes["referencia"].cget("background") == "#a21b1b"
+        assert vista.formulario.bordes["motivo"].cget("background") == "#a21b1b"
         vista.formulario.variables["referencia"].set("DEV-UI-01")
         vista.formulario.variables["motivo"].set("Retorno inspeccionado")
         with patch("frontend.app.messagebox.showerror") as error:
@@ -171,6 +233,10 @@ class TestInterfaz:
                 error.assert_not_called()
             assert reportes.resultado["tipo"] == tipo
             assert len(reportes.tablas) == len(reportes.resultado["secciones"])
+            grafico = reportes.secciones.nametowidget(reportes.secciones.tabs()[0])
+            assert reportes.secciones.tab(grafico, "text") == "Gráfico"
+            if tipo != "rechazos_precinto":
+                assert grafico.filas
             ruta_csv = Path(self.temporal.name) / f"{tipo}.csv"
             with patch("frontend.devoluciones_reportes.filedialog.asksaveasfilename", return_value=str(ruta_csv)):
                 reportes.exportar()

@@ -27,7 +27,8 @@ class VistaOpcionales(ttk.Frame):
         acciones.pack(fill="x", pady=5)
         self.boton_previsualizar = ttk.Button(acciones, text="Consultar faltantes", command=lambda: app.ejecutar(self.previsualizar))
         self.boton_previsualizar.pack(side="left")
-        self.boton_generar = ttk.Button(acciones, text="Generar orden por faltantes actuales", command=lambda: app.ejecutar(self.generar))
+        self.boton_generar = ttk.Button(acciones, text="Generar orden por faltantes actuales", style="Principal.TButton",
+                                       command=lambda: app.ejecutar(self.generar))
         self.boton_generar.pack(side="left", padx=8)
         self.necesidades = Tabla(compras, [
             ("codigo", "Producto"), ("minimo_cd", "Mínimo CD"), ("disponible_cd", "Vendible CD"),
@@ -43,7 +44,8 @@ class VistaOpcionales(ttk.Frame):
         botones = ttk.Frame(compras)
         botones.pack(fill="x")
         ttk.Button(botones, text="Ver productos y cantidades", command=lambda: app.ejecutar(self.ver_detalle)).pack(side="left")
-        self.boton_recibir = ttk.Button(botones, text="Preparar recepción en Compras", command=lambda: app.ejecutar(self.preparar_recepcion))
+        self.boton_recibir = ttk.Button(botones, text="Preparar recepción en Compras", style="Principal.TButton",
+                                       command=lambda: app.ejecutar(self.preparar_recepcion))
         self.boton_recibir.pack(side="left", padx=8)
         ttk.Button(botones, text="Cancelar sugerencia pendiente", command=lambda: app.ejecutar(self.cancelar)).pack(side="left")
         ttk.Label(compras, text="La recepción es completa: registrar en Compras los productos, cantidades, costos y lotes reales. Cancelar libera la cobertura de compra pendiente; no borra la orden.",

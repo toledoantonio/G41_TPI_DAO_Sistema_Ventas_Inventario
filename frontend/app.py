@@ -2,10 +2,12 @@
 
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox, ttk
+from datetime import date
+from tkinter import font, messagebox, ttk
 
 from backend.models.entidades import centavos, entero, importe
 from backend.patterns.estados_bulto import ErrorDominio
+from frontend.estilos import aplicar_estilos
 
 
 MEDIOS_PAGO = [
@@ -28,9 +30,17 @@ class Tabla(ttk.Frame):
             height=alto,
             selectmode="browse",
         )
+        self.arbol.tag_configure("alterna", background="#f2f7f9")
+        fuente = font.Font(root=self, font=ttk.Style(self).lookup("Treeview.Heading", "font") or "TkHeadingFont")
         for clave, titulo in columnas:
-            self.arbol.heading(clave, text=titulo)
-            self.arbol.column(clave, width=120, minwidth=65)
+            numerica = clave.endswith("_centavos") or clave in {
+                "cantidad", "disponible", "vendible", "vencido", "reservado", "pendiente", "rechazado",
+                "minimo", "faltante", "unidades", "solicitada", "asignada",
+            }
+            ancho = 195 if clave in {"descripcion", "observacion", "ubicacion", "destino", "local", "nombre"} else 100
+            alineacion = "e" if numerica else "w"
+            self.arbol.heading(clave, text=titulo, anchor=alineacion)
+            self.arbol.column(clave, width=max(ancho, fuente.measure(titulo) + 24), minwidth=70, anchor=alineacion)
         vertical = ttk.Scrollbar(self, orient="vertical", command=self.arbol.yview)
         horizontal = ttk.Scrollbar(self, orient="horizontal", command=self.arbol.xview)
         self.arbol.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
@@ -51,7 +61,8 @@ class Tabla(ttk.Frame):
                 importe(fila[clave]) if clave.endswith("_centavos") and fila.get(clave) is not None else fila.get(clave, "")
                 for clave, _ in self.columnas
             ]
-            self.arbol.insert("", "end", iid=iid, values=["—" if v is None else v for v in valores])
+            self.arbol.insert("", "end", iid=iid, values=["—" if v is None else v for v in valores],
+                              tags=("alterna",) if indice % 2 else ())
             self.filas[iid] = fila
             if anterior and fila.get("id") is not None and fila.get("id") == anterior.get("id"):
                 self.arbol.selection_set(iid)
@@ -66,24 +77,37 @@ class Tabla(ttk.Frame):
 class Formulario(ttk.Frame):
     """Campos en una cuadrícula: el origen opcional provee opciones (id, etiqueta)."""
 
-    def __init__(self, padre, campos):
+    def __init__(self, padre, campos, fechas=()):
         super().__init__(padre)
         self.campos = campos
         self.variables = {}
         self.widgets = {}
+        self.etiquetas = {}
+        self.bordes = {}
+        self.fechas = fechas
+        self.fondo = ttk.Style(self).lookup("TFrame", "background")
         for indice, (clave, etiqueta, origen) in enumerate(campos):
             fila, columna = divmod(indice, 3)
             contenedor = ttk.Frame(self, padding=(0, 3, 15, 5))
             contenedor.grid(row=fila, column=columna, sticky="ew")
-            ttk.Label(contenedor, text=etiqueta).pack(anchor="w")
+            rotulo = ttk.Label(contenedor, text=etiqueta)
+            rotulo.pack(anchor="w")
+            borde = tk.Frame(contenedor, background=self.fondo)
+            borde.pack(fill="x")
             variable = tk.StringVar()
             widget = (
-                ttk.Combobox(contenedor, textvariable=variable, state="readonly", width=27)
+                ttk.Combobox(borde, textvariable=variable, state="readonly", width=27)
                 if origen
-                else ttk.Entry(contenedor, textvariable=variable, width=30)
+                else ttk.Entry(borde, textvariable=variable, width=30)
             )
-            widget.pack(fill="x")
+            widget.pack(fill="x", padx=1, pady=1)
             self.variables[clave], self.widgets[clave] = variable, widget
+            self.etiquetas[clave] = rotulo
+            self.bordes[clave] = borde
+            variable.trace_add("write", lambda *_, campo=clave: self.limpiar_error(campo))
+            if clave in fechas:
+                widget.configure(validate="key", validatecommand=(self.register(self.teclas_fecha), "%P"))
+                widget.bind("<KeyRelease>", lambda evento, campo=clave: self.formatear_fecha(campo, evento))
         for columna in range(3):
             self.columnconfigure(columna, weight=1)
         self.actualizar()
@@ -105,7 +129,43 @@ class Formulario(ttk.Frame):
                 raise ErrorDominio("Faltan datos de catálogo; registre las opciones necesarias primero.")
             identificador = valor.split(" · ", 1)[0]
             return int(identificador) if identificador.isdigit() else identificador
+        if clave in self.fechas and valor:
+            if len(valor) == 8 and valor.isascii() and valor.isdigit():
+                valor = f"{valor[:4]}-{valor[4:6]}-{valor[6:]}"
+            try:
+                fecha = date.fromisoformat(valor).isoformat()
+                if fecha == valor:
+                    return fecha
+            except ValueError:
+                pass
+            self.marcar_error(clave)
+            raise ErrorDominio(f"{self.etiquetas[clave]['text']}: ingresá una fecha válida (AAAA-MM-DD).")
         return valor
+
+    @staticmethod
+    def teclas_fecha(propuesta):
+        return len(propuesta) <= 10 and len(propuesta.replace("-", "")) <= 8 and all(
+            caracter in "0123456789-" for caracter in propuesta
+        )
+
+    def formatear_fecha(self, clave, evento):
+        widget = self.widgets[clave]
+        if not evento.char or evento.char not in "0123456789" or widget.index("insert") != widget.index("end"):
+            return
+        valor = self.variables[clave].get().replace("-", "")
+        partes = (valor[:4], valor[4:6], valor[6:8])
+        self.variables[clave].set("-".join(parte for parte in partes if parte))
+        widget.icursor("end")
+
+    def marcar_error(self, *claves):
+        for clave in claves:
+            self.etiquetas[clave].configure(foreground="#a21b1b")
+            self.bordes[clave].configure(background="#a21b1b")
+        self.widgets[claves[0]].focus_set()
+
+    def limpiar_error(self, clave):
+        self.etiquetas[clave].configure(foreground="")
+        self.bordes[clave].configure(background=self.fondo)
 
     def completar(self, datos):
         for clave, _, origen in self.campos:
@@ -133,7 +193,8 @@ class EditorCatalogo(ttk.Frame):
         self.formulario.pack(fill="x")
         acciones = ttk.Frame(self, padding=(0, 8))
         acciones.pack(fill="x")
-        self.boton_guardar = ttk.Button(acciones, text="Guardar", command=lambda: app.ejecutar(self.salvar))
+        self.boton_guardar = ttk.Button(acciones, text="Guardar", style="Principal.TButton",
+                                       command=lambda: app.ejecutar(self.salvar))
         self.boton_guardar.pack(side="left")
         ttk.Button(acciones, text="Editar selección", command=lambda: app.ejecutar(self.editar)).pack(
             side="left", padx=8
@@ -179,7 +240,7 @@ class Renglones(ttk.LabelFrame):
             campos.append(("costo", "Costo unitario", None))
             campos.extend([("lote", "Lote (vacío: automático por compra)", None),
                            ("vencimiento", "Vencimiento opcional AAAA-MM-DD", None)])
-        self.formulario = Formulario(self, campos)
+        self.formulario = Formulario(self, campos, fechas=("vencimiento",) if compra else ())
         self.formulario.pack(fill="x")
         botones = ttk.Frame(self)
         botones.pack(fill="x", pady=5)
@@ -187,6 +248,8 @@ class Renglones(ttk.LabelFrame):
             botones, text="Agregar renglón", command=lambda: app.ejecutar(self.agregar)
         )
         self.boton_agregar.pack(side="left")
+        self.boton_agregar.state(["disabled"])
+        self.formulario.variables["cantidad"].trace_add("write", self.actualizar_boton_agregar)
         ttk.Button(botones, text="Quitar selección", command=lambda: app.ejecutar(self.quitar)).pack(
             side="left", padx=8
         )
@@ -198,9 +261,17 @@ class Renglones(ttk.LabelFrame):
         self.tabla.pack(fill="both", expand=True)
         app.refrescadores.append(self.formulario.actualizar)
 
+    def actualizar_boton_agregar(self, *_):
+        cantidad = self.formulario.variables["cantidad"].get().strip()
+        self.boton_agregar.state(["!disabled" if cantidad else "disabled"])
+
     def agregar(self):
         producto_id = self.formulario.obtener("producto")
-        cantidad = entero(self.formulario.obtener("cantidad"))
+        try:
+            cantidad = entero(self.formulario.obtener("cantidad"))
+        except ErrorDominio:
+            self.formulario.marcar_error("cantidad")
+            raise
         costo = self.formulario.obtener("costo") if self.compra else None
         if self.compra:
             costo = importe(centavos(costo))
@@ -217,12 +288,16 @@ class Renglones(ttk.LabelFrame):
             }
         )
         self.tabla.cargar(self.items)
+        self.tabla.arbol.see(str(self.items[-1]["id"]))
         self.formulario.limpiar()
         if self.al_cambiar:
             self.al_cambiar()
 
     def quitar(self):
-        self.items.remove(self.tabla.seleccionada())
+        item = self.tabla.seleccionada()
+        if self.al_cambiar:
+            self.app.venta_cobros.validar_quitar_producto(item)
+        self.items.remove(item)
         for indice, item in enumerate(self.items):
             item["id"] = indice
         self.tabla.cargar(self.items)
@@ -269,15 +344,16 @@ class RenglonesCobro(ttk.LabelFrame):
         )
         self.boton_saldar.pack(side="left", padx=8)
         ttk.Button(botones, text="Quitar cobro", command=lambda: app.ejecutar(self.quitar)).pack(side="left")
-        self.resumen = ttk.Label(botones, text="Total venta: $0.00 · Cobrado: $0.00 · Restante: $0.00")
-        self.resumen.pack(side="left", padx=15)
+        self.resumen = ttk.Label(self, text="Total venta: $0.00 · Cobrado: $0.00 · Restante: $0.00", style="Estado.TLabel")
+        self.resumen.pack(fill="x", pady=(0, 4))
         self.tabla = Tabla(self, [("medio_pago", "Medio de pago"), ("importe_centavos", "Importe")], alto=3)
         self.tabla.pack(fill="both", expand=True)
 
-    def total_venta_centavos(self):
+    def total_venta_centavos(self, sin_item=None):
         precios = {p["id"]: p["precio_centavos"] for p in self.app.sistema.listar("productos")}
         return sum(
-            precios.get(item["producto_id"], 0) * item["cantidad"] for item in self.renglones_productos.items
+            precios.get(item["producto_id"], 0) * item["cantidad"]
+            for item in self.renglones_productos.items if item is not sin_item
         )
 
     def total_cobrado_centavos(self):
@@ -287,15 +363,28 @@ class RenglonesCobro(ttk.LabelFrame):
         total = self.total_venta_centavos()
         cobrado = self.total_cobrado_centavos()
         restante = total - cobrado
+        saldo = f"Restante: ${importe(restante)}" if restante >= 0 else f"Excedente: ${importe(-restante)} · ajustá los cobros"
         self.resumen["text"] = (
-            f"Total venta: ${importe(total)} · Cobrado: ${importe(cobrado)} · Restante: ${importe(restante)}"
+            f"Total venta: ${importe(total)} · Cobrado: ${importe(cobrado)} · {saldo}"
         )
+        estilo = "Error.Estado.TLabel" if restante < 0 else "Correcto.Estado.TLabel" if total and not restante else "Estado.TLabel"
+        self.resumen.configure(style=estilo)
+        self.boton_agregar.state(["!disabled" if restante > 0 else "disabled"])
+        self.boton_saldar.state(["!disabled" if restante > 0 else "disabled"])
+
+    def validar_quitar_producto(self, item):
+        if self.total_cobrado_centavos() > self.total_venta_centavos(sin_item=item):
+            raise ErrorDominio("Quitá o ajustá un cobro antes de retirar ese producto: los cobros superarían el nuevo total.")
 
     def agregar(self):
         medio = self.formulario.obtener("medio_pago")
         monto_cent = centavos(self.formulario.obtener("importe"))
         if monto_cent <= 0:
             raise ErrorDominio("El importe del cobro debe ser mayor a cero.")
+        restante = self.total_venta_centavos() - self.total_cobrado_centavos()
+        if monto_cent > restante:
+            self.formulario.marcar_error("importe")
+            raise ErrorDominio(f"El importe supera el saldo por cobrar de ${importe(max(0, restante))}.")
         self.items.append(
             {
                 "id": len(self.items),
@@ -336,6 +425,10 @@ class RenglonesCobro(ttk.LabelFrame):
         if not self.items:
             importe_escrito = self.formulario.variables["importe"].get().strip()
             if importe_escrito:
+                restante = self.total_venta_centavos()
+                if centavos(importe_escrito) > restante:
+                    self.formulario.marcar_error("importe")
+                    raise ErrorDominio(f"El importe supera el saldo por cobrar de ${importe(restante)}.")
                 return [(self.formulario.obtener("medio_pago"), importe_escrito)]
         return [(i["medio_pago"], i["importe"]) for i in self.items]
 
@@ -353,23 +446,23 @@ class Aplicacion:
         raiz.title("G41 · Ventas e inventario")
         raiz.geometry("1220x820")
         raiz.minsize(1020, 720)
-        estilo = ttk.Style(raiz)
-        estilo.theme_use("clam")
-        estilo.configure("Treeview", rowheight=25)
-        encabezado = ttk.Frame(raiz, padding=12)
+        aplicar_estilos(raiz)
+        encabezado = ttk.Frame(raiz, padding=(18, 11), style="Encabezado.TFrame")
         encabezado.pack(fill="x")
-        ttk.Label(encabezado, text="Centro de Distribución → Locales y Ventas", font=("Segoe UI", 17, "bold")).pack(
-            side="left"
-        )
+        titulo = ttk.Frame(encabezado, style="Encabezado.TFrame")
+        titulo.pack(side="left")
+        ttk.Label(titulo, text="Ventas e inventario", style="Titulo.TLabel").pack(anchor="w")
+        ttk.Label(titulo, text="Centro de distribución y locales", style="Subtitulo.TLabel").pack(anchor="w")
         ttk.Button(encabezado, text="Actualizar datos", command=lambda: self.ejecutar(self.actualizar)).pack(
             side="right"
         )
         self.pestanas = ttk.Notebook(raiz)
-        self.pestanas.pack(fill="both", expand=True, padx=12)
+        self.pestanas.pack(fill="both", expand=True, padx=12, pady=(7, 0))
         self.estado = tk.StringVar(
             value="Registre catálogo y una compra para comenzar, o use --demo en una base separada."
         )
-        ttk.Label(raiz, textvariable=self.estado, padding=10, wraplength=1100).pack(fill="x")
+        self.barra_estado = ttk.Label(raiz, textvariable=self.estado, style="Estado.TLabel", wraplength=970)
+        self.barra_estado.pack(fill="x")
         self.crear_catalogo()
         self.crear_compras()
         self.crear_reposicion()
@@ -409,9 +502,11 @@ class Aplicacion:
             resultado = accion()
             self.actualizar()
             self.estado.set(resultado if isinstance(resultado, str) else "Operación completada.")
+            self.barra_estado.configure(style="Correcto.Estado.TLabel")
             return True
         except (ErrorDominio, sqlite3.Error, OSError) as error:
             self.estado.set(str(error))
+            self.barra_estado.configure(style="Error.Estado.TLabel")
             messagebox.showerror("No se pudo confirmar", str(error), parent=self.raiz)
             return False
 
@@ -508,7 +603,8 @@ class Aplicacion:
         self.compra_items = Renglones(panel, self, compra=True)
         self.compra_items.pack(fill="both", expand=True)
         ttk.Button(
-            panel, text="Confirmar compra recibida", command=lambda: self.ejecutar(self.confirmar_compra)
+            panel, text="Confirmar compra recibida", style="Principal.TButton",
+            command=lambda: self.ejecutar(self.confirmar_compra)
         ).pack(anchor="w", pady=8)
         self.compras = Tabla(
             panel,
@@ -544,6 +640,9 @@ class Aplicacion:
 
     def crear_reposicion(self):
         panel = self.panel("3. Reposición")
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+        panel.rowconfigure(3, weight=1)
         self.orden_form = Formulario(
             panel,
             [
@@ -551,11 +650,11 @@ class Aplicacion:
                 ("local", "Local solicitante / destino", self.opciones("ubicaciones", "LOCAL")),
             ],
         )
-        self.orden_form.pack(fill="x")
+        self.orden_form.grid(row=0, column=0, sticky="ew")
         self.orden_items = Renglones(panel, self)
-        self.orden_items.pack(fill="both", expand=True)
-        ttk.Button(panel, text="Crear orden por local", command=lambda: self.ejecutar(self.confirmar_orden)).pack(
-            anchor="w", pady=5
+        self.orden_items.grid(row=1, column=0, sticky="nsew")
+        ttk.Button(panel, text="Crear orden por local", style="Principal.TButton", command=lambda: self.ejecutar(self.confirmar_orden)).grid(
+            row=2, column=0, sticky="w", pady=5
         )
         self.ordenes = Tabla(
             panel,
@@ -568,9 +667,9 @@ class Aplicacion:
             ],
             alto=4,
         )
-        self.ordenes.pack(fill="both", expand=True)
+        self.ordenes.grid(row=3, column=0, sticky="nsew")
         botones = ttk.Frame(panel)
-        botones.pack(fill="x", pady=5)
+        botones.grid(row=4, column=0, sticky="ew", pady=5)
         ttk.Button(botones, text="Ver pendientes", command=lambda: self.ejecutar(self.ver_orden)).pack(side="left")
         ttk.Button(
             botones,
@@ -632,16 +731,14 @@ class Aplicacion:
             ventana.destroy()
 
         ventana.protocol("WM_DELETE_WINDOW", cerrar)
-        ttk.Button(contenedor, text="Preparar y reservar", command=lambda: self.ejecutar(confirmar)).pack(
+        ttk.Button(contenedor, text="Preparar y reservar", style="Principal.TButton", command=lambda: self.ejecutar(confirmar)).pack(
             anchor="w", pady=8
         )
 
     def crear_logistica(self):
         panel = self.panel("4. Logística")
-        ttk.Label(
-            panel,
-            text="Seleccione un bulto. Secuencia: Preparado → Precintado → En tránsito → Recibido → Verificado / Rechazado.",
-        ).pack(anchor="w")
+        self.ayuda_logistica = tk.StringVar()
+        ttk.Label(panel, textvariable=self.ayuda_logistica, style="Estado.TLabel", wraplength=910).pack(fill="x")
         self.bultos = Tabla(
             panel,
             [
@@ -665,31 +762,70 @@ class Aplicacion:
         )
         self.logistica_form.pack(fill="x")
         self.roto = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            panel, text="Precinto roto: rechazar y bloquear mercadería", variable=self.roto
-        ).pack(anchor="w", pady=5)
+        self.casilla_roto = ttk.Checkbutton(
+            panel, text="Precinto roto: rechazar y bloquear mercadería", variable=self.roto,
+            command=self.actualizar_controles_logistica,
+        )
+        self.casilla_roto.pack(anchor="w", pady=5)
         botones = ttk.Frame(panel)
         botones.pack(fill="x", pady=8)
+        self.botones_logistica = {}
         for titulo, accion in [
             ("1. Precintar", "precintar"),
             ("2. Despachar", "despachar"),
             ("3. Recibir", "recibir"),
             ("4. Verificar / rechazar", "verificar"),
         ]:
-            ttk.Button(
-                botones, text=titulo, command=lambda a=accion: self.ejecutar(lambda: self.operar_bulto(a))
-            ).pack(side="left", padx=(0, 8))
-        ttk.Button(
+            boton = ttk.Button(
+                botones, text=titulo, style="Principal.TButton",
+                command=lambda a=accion: self.ejecutar(lambda: self.operar_bulto(a))
+            )
+            boton.pack(side="left", padx=(0, 8))
+            self.botones_logistica[accion] = boton
+        self.boton_detalle_bulto = ttk.Button(
             panel, text="Consultar historial y contenido", command=lambda: self.ejecutar(self.ver_bulto)
-        ).pack(anchor="w")
-        ttk.Label(
-            panel,
-            text="Recibir no habilita venta. Al verificar confirma que remito, contenido y precinto corresponden; transfiere el costo histórico al local.",
-            wraplength=1000,
-        ).pack(anchor="w", pady=10)
-        self.refrescadores.extend(
-            [self.logistica_form.actualizar, lambda: self.bultos.cargar(self.sistema.listar("bultos"))]
         )
+        self.boton_detalle_bulto.pack(anchor="w")
+        self.seleccion_logistica = None
+        self.ventana_bulto = None
+        self.bultos.arbol.bind("<<TreeviewSelect>>", self.actualizar_controles_logistica)
+        self.refrescadores.extend([self.logistica_form.actualizar, self.refrescar_bultos])
+        self.actualizar_controles_logistica()
+
+    def refrescar_bultos(self):
+        self.bultos.cargar(self.sistema.listar("bultos"))
+        self.actualizar_controles_logistica()
+
+    def actualizar_controles_logistica(self, _evento=None):
+        seleccion = self.bultos.arbol.selection()
+        fila = self.bultos.filas.get(seleccion[0], {}) if seleccion else {}
+        estado = fila.get("estado")
+        accion = {"Preparado": "precintar", "Precintado": "despachar",
+                  "En tránsito": "recibir", "Recibido": "verificar"}.get(estado)
+        ayuda = {
+            "Preparado": "Ingresá el código del precinto y pulsá Precintar.",
+            "Precintado": "Pulsá Despachar cuando el bulto salga del centro de distribución.",
+            "En tránsito": "Elegí el local receptor y pulsá Recibir cuando llegue el bulto.",
+            "Recibido": "Ingresá el precinto observado y verificá el contenido. Si el precinto está roto, marcá la casilla e indicá el motivo.",
+            "Verificado": "La recepción quedó verificada. El historial incluye las transiciones y el contenido recibido.",
+            "Rechazado": "La mercadería quedó bloqueada. Consultá el historial para ver el motivo.",
+        }
+        self.ayuda_logistica.set(f"{estado} · {ayuda[estado]}" if estado in ayuda else "Seleccioná un bulto para ver qué acción sigue.")
+        clave = (fila.get("id"), estado)
+        form = self.logistica_form
+        if clave != self.seleccion_logistica:
+            self.seleccion_logistica = clave
+            self.roto.set(False)
+            form.variables["motivo"].set("")
+            form.variables["precinto"].set("" if accion in ("precintar", "verificar") else fila.get("precinto") or "")
+        for nombre, boton in self.botones_logistica.items():
+            boton.state(["!disabled" if nombre == accion else "disabled"])
+        self.boton_detalle_bulto.state(["!disabled" if fila else "disabled"])
+        self.casilla_roto.state(["!disabled" if accion == "verificar" else "disabled"])
+        form.etiquetas["precinto"]["text"] = "Precinto observado" if accion == "verificar" else "Precinto asignado"
+        form.widgets["precinto"]["state"] = "normal" if accion in ("precintar", "verificar") else "readonly"
+        form.widgets["local"]["state"] = "readonly" if accion in ("recibir", "verificar") else "disabled"
+        form.widgets["motivo"]["state"] = "normal" if accion == "verificar" and self.roto.get() else "disabled"
 
     def operar_bulto(self, accion):
         identificador = self.bultos.seleccionada()["id"]
@@ -720,24 +856,32 @@ class Aplicacion:
 
     def ver_bulto(self):
         identificador = self.bultos.seleccionada()["id"]
-        self.mostrar_tabla("Lotes del bulto", self.sistema.lotes_bulto(identificador), [
-            ("codigo", "Lote"), ("producto_id", "Producto"), ("cantidad", "Unidades"), ("vencimiento", "Vencimiento"),
-        ])
-        self.mostrar_tabla(
-            f"Historial del bulto {identificador}",
-            self.sistema.historial_bulto(identificador),
-            [("anterior", "Anterior"), ("nuevo", "Nuevo"), ("fecha", "Fecha"), ("observacion", "Evidencia")],
-        )
-        self.mostrar_tabla(
-            f"Contenido del bulto {identificador}",
-            self.sistema.contenido_bulto(identificador),
-            [
+        secciones = [
+            ("Historial", self.sistema.historial_bulto(identificador), [
+                ("anterior", "Anterior"), ("nuevo", "Nuevo"), ("fecha", "Fecha"), ("observacion", "Evidencia"),
+            ]),
+            ("Contenido", self.sistema.contenido_bulto(identificador), [
                 ("codigo", "Código"),
                 ("descripcion", "Producto"),
                 ("cantidad", "Cantidad"),
                 ("costo_centavos", "Costo unit. transf."),
-            ],
-        )
+            ]),
+            ("Lotes", self.sistema.lotes_bulto(identificador), [
+                ("codigo", "Lote"), ("producto_id", "Producto"), ("cantidad", "Unidades"), ("vencimiento", "Vencimiento"),
+            ]),
+        ]
+        if self.ventana_bulto is not None and self.ventana_bulto.winfo_exists():
+            self.ventana_bulto.destroy()
+        ventana = self.ventana_bulto = tk.Toplevel(self.raiz)
+        ventana.title(f"Detalle del bulto {identificador}")
+        ventana.geometry("950x420")
+        ventana.transient(self.raiz)
+        pestanas = ttk.Notebook(ventana)
+        pestanas.pack(fill="both", expand=True, padx=12, pady=12)
+        for titulo, filas, columnas in secciones:
+            tabla = Tabla(pestanas, columnas)
+            pestanas.add(tabla, text=titulo)
+            tabla.cargar(filas)
 
     def crear_inventario(self):
         panel = self.panel("5. Inventario")
@@ -750,7 +894,7 @@ class Aplicacion:
             ],
         )
         self.minimo_form.pack(fill="x")
-        ttk.Button(panel, text="Guardar mínimo", command=lambda: self.ejecutar(self.guardar_minimo)).pack(
+        ttk.Button(panel, text="Guardar mínimo", style="Principal.TButton", command=lambda: self.ejecutar(self.guardar_minimo)).pack(
             anchor="w", pady=8
         )
         self.inventario = Tabla(
@@ -789,10 +933,15 @@ class Aplicacion:
 
     def crear_ventas(self):
         panel = self.panel("6. Ventas y caja")
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(2, weight=1)
+        panel.rowconfigure(3, weight=1)
+        panel.rowconfigure(5, weight=1)
         ttk.Label(
             panel,
-            text="Registrar venta en un local sobre stock Disponible y Verificado. Conserva precio y costo histórico y emite comprobante interno.",
-        ).pack(anchor="w")
+            text="Elegí el local, agregá los productos y completá el cobro. Podés usar Saldar resto para cubrir el importe pendiente.",
+            style="Ayuda.TLabel", wraplength=910,
+        ).grid(row=0, column=0, sticky="w")
         self.venta_form = Formulario(
             panel,
             [
@@ -800,16 +949,17 @@ class Aplicacion:
                 ("comprobante", "N° comprobante (opcional)", None),
             ],
         )
-        self.venta_form.pack(fill="x")
+        self.venta_form.grid(row=1, column=0, sticky="ew")
         self.venta_items = Renglones(panel, self, al_cambiar=lambda: self.venta_cobros.actualizar_resumen())
-        self.venta_items.pack(fill="both", expand=True)
+        self.venta_items.grid(row=2, column=0, sticky="nsew")
         self.venta_cobros = RenglonesCobro(panel, self, self.venta_items)
-        self.venta_cobros.pack(fill="both", expand=True, pady=4)
+        self.venta_cobros.grid(row=3, column=0, sticky="nsew", pady=4)
         acciones = ttk.Frame(panel)
-        acciones.pack(fill="x", pady=5)
+        acciones.grid(row=4, column=0, sticky="ew", pady=5)
         self.boton_confirmar_venta = ttk.Button(
             acciones,
             text="Confirmar venta y emitir comprobante",
+            style="Principal.TButton",
             command=lambda: self.ejecutar(self.confirmar_venta),
         )
         self.boton_confirmar_venta.pack(side="left")
@@ -837,7 +987,7 @@ class Aplicacion:
             ],
             alto=4,
         )
-        self.ventas.pack(fill="both", expand=True)
+        self.ventas.grid(row=5, column=0, sticky="nsew")
         self.refrescadores.extend(
             [
                 self.venta_form.actualizar,

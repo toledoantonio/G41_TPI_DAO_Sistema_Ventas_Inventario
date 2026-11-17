@@ -2,7 +2,7 @@
 
 Implementados el 31/10/2026. Presentación en **8. Reportes**, consultas en `ReportesDAO`, validación y exportación en `GeneradorReportes`. Todas las secciones se leen dentro de una misma transacción SQLite, sin modificar operaciones.
 
-Se contrastaron con las familias sugeridas en la consigna y el apunte de reportes de la cátedra. La correspondencia y el alcance de la presentación (tablas y CSV; sin PDF ni gráficos) están registrados en [referencias de cátedra](referencias_catedra.md#comprobación-del-incremento-del-31102026).
+Se contrastaron con las familias sugeridas en la consigna y el apunte de reportes de la cátedra. La pestaña **Gráfico** muestra barras construidas con los mismos resultados filtrados que las tablas. La exportación conserva las secciones tabulares en CSV. [Referencias de cátedra](referencias_catedra.md#comprobación-del-incremento-del-31102026).
 
 ## REP01 — Ventas e ingresos
 

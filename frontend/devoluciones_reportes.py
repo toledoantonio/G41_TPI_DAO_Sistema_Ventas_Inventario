@@ -7,6 +7,7 @@ from backend.models.entidades import entero, importe
 from backend.patterns.estados_bulto import ErrorDominio
 from backend.reports.generador_reportes import REPORTES, exportar_csv
 from frontend.app import Formulario, MEDIOS_PAGO, Tabla
+from frontend.graficos_reportes import GraficoReporte
 
 
 class VistaDevoluciones(ttk.Frame):
@@ -22,30 +23,36 @@ class VistaDevoluciones(ttk.Frame):
         nuevo, historial = ttk.Frame(documentos), ttk.Frame(documentos)
         documentos.add(nuevo, text="Nueva devolución")
         documentos.add(historial, text="Historial y consulta")
+        nuevo.columnconfigure(0, weight=1)
+        nuevo.rowconfigure(3, weight=1)
+        nuevo.rowconfigure(6, weight=1)
         self.formulario = Formulario(nuevo, [
             ("venta", "Venta original", lambda: [(v["id"], f"{v['comprobante']} · {v['local']}") for v in self.sistema.listar("ventas")]),
             ("local", "Local de devolución", app.opciones("ubicaciones", "LOCAL")),
-            ("referencia", "Referencia única de devolución", None),
-            ("motivo", "Motivo", None),
+            ("referencia", "Referencia única de devolución (obligatoria)", None),
+            ("motivo", "Motivo (obligatorio)", None),
             ("medio", "Medio de reintegro", lambda: MEDIOS_PAGO),
         ])
-        self.formulario.pack(fill="x")
-        self.boton_cargar = ttk.Button(nuevo, text="Cargar venta y cantidades devolvibles", command=lambda: app.ejecutar(self.cargar_venta))
-        self.boton_cargar.pack(anchor="w", pady=4)
+        self.formulario.grid(row=0, column=0, sticky="ew")
+        ttk.Label(nuevo, text="Asigná una referencia propia (por ejemplo, DEV-001) para identificar la devolución y evitar duplicados.",
+                  style="Ayuda.TLabel", wraplength=900).grid(row=1, column=0, sticky="w")
+        self.boton_cargar = ttk.Button(nuevo, text="Cargar venta y cantidades devolvibles", style="Principal.TButton",
+                                      command=lambda: app.ejecutar(self.cargar_venta))
+        self.boton_cargar.grid(row=2, column=0, sticky="w", pady=4)
         self.originales = Tabla(nuevo, [
             ("id", "Detalle original"), ("codigo", "Producto"), ("cantidad", "Vendida"),
             ("devuelta", "Ya devuelta"), ("restante", "Devolvible"), ("precio_unitario_centavos", "Precio original"),
         ], alto=3)
-        self.originales.pack(fill="both", expand=True)
+        self.originales.grid(row=3, column=0, sticky="nsew")
         self.detalle_form = Formulario(nuevo, [
             ("cantidad", "Unidades del detalle seleccionado", None),
             ("condicion", "Condición inspeccionada", lambda: [("VENDIBLE", "Vendible"), ("NO_VENDIBLE", "No vendible / bloqueada")]),
             ("lote", "Lote retornado", self.opciones_lotes),
         ])
         self.originales.arbol.bind("<<TreeviewSelect>>", lambda _: self.detalle_form.actualizar())
-        self.detalle_form.pack(fill="x")
+        self.detalle_form.grid(row=4, column=0, sticky="ew")
         acciones = ttk.Frame(nuevo)
-        acciones.pack(fill="x", pady=4)
+        acciones.grid(row=5, column=0, sticky="ew", pady=4)
         self.boton_agregar = ttk.Button(acciones, text="Agregar detalle seleccionado", command=lambda: app.ejecutar(self.agregar))
         self.boton_agregar.pack(side="left")
         ttk.Button(acciones, text="Quitar renglón", command=lambda: app.ejecutar(self.quitar)).pack(side="left", padx=8)
@@ -56,9 +63,10 @@ class VistaDevoluciones(ttk.Frame):
             ("condicion", "Condición"), ("reintegro_centavos", "Reintegro original"),
             ("lote", "Lote"),
         ], alto=3)
-        self.renglones.pack(fill="both", expand=True)
-        self.boton_confirmar = ttk.Button(nuevo, text="Confirmar devolución, stock y reintegro", command=lambda: app.ejecutar(self.confirmar))
-        self.boton_confirmar.pack(anchor="w", pady=5)
+        self.renglones.grid(row=6, column=0, sticky="nsew")
+        self.boton_confirmar = ttk.Button(nuevo, text="Confirmar devolución, stock y reintegro", style="Principal.TButton",
+                                         command=lambda: app.ejecutar(self.confirmar))
+        self.boton_confirmar.grid(row=7, column=0, sticky="w", pady=5)
         self.historial = Tabla(historial, [
             ("id", "Devolución"), ("referencia", "Referencia"), ("comprobante", "Venta original"),
             ("local", "Local"), ("fecha", "Fecha"), ("total_centavos", "Reintegro"),
@@ -123,6 +131,11 @@ class VistaDevoluciones(ttk.Frame):
     def confirmar(self):
         self.validar_venta_cargada()
         f = self.formulario
+        campos = {"referencia": "la referencia única de devolución", "motivo": "el motivo"}
+        faltantes = [clave for clave in campos if not f.obtener(clave).strip()]
+        if faltantes:
+            f.marcar_error(*faltantes)
+            raise ErrorDominio(f"Completá {' y '.join(campos[clave] for clave in faltantes)}.")
         identificador = self.sistema.registrar_devolucion(
             self.venta_cargada, f.obtener("local"),
             [(i["detalle_id"], i["cantidad"], i["condicion"], i["lote_id"]) for i in self.items],
@@ -149,24 +162,27 @@ class VistaReportes(ttk.Frame):
         self.app = app
         self.resultado = None
         self.tablas = []
-        ttk.Label(self, text="Fechas inclusivas AAAA-MM-DD; vacías incluyen todo el historial. Existencias muestra la situación actual.",
-                  wraplength=1100).pack(anchor="w")
+        ttk.Label(self, text="Elegí el reporte y pulsá Generar para ver el gráfico y las tablas. Las fechas vacías incluyen todo el historial.",
+                  style="Ayuda.TLabel", wraplength=910).pack(anchor="w")
         self.formulario = Formulario(self, [
             ("tipo", "Reporte", lambda: list(REPORTES.items())),
             ("desde", "Desde", None), ("hasta", "Hasta", None),
             ("ubicacion", "Ubicación / local", lambda: [("TODAS", "Todas")] + app.opciones("ubicaciones")()),
             ("medio", "Medio (solo sección caja)", lambda: [("TODOS", "Todos")] + [
                 (m, m) for m in sorted({m[0] for m in MEDIOS_PAGO} | {f["medio_pago"] for f in app.sistema.listar("caja")})]),
-        ])
+        ], fechas=("desde", "hasta"))
         self.formulario.pack(fill="x")
         self.formulario.widgets["tipo"].bind("<<ComboboxSelected>>", lambda _: self.ajustar_filtros())
         acciones = ttk.Frame(self)
         acciones.pack(fill="x", pady=8)
-        self.boton_generar = ttk.Button(acciones, text="Generar reporte", command=lambda: app.ejecutar(self.generar))
+        self.boton_generar = ttk.Button(acciones, text="Generar reporte", style="Principal.TButton",
+                                       command=lambda: app.ejecutar(self.generar))
         self.boton_generar.pack(side="left")
-        ttk.Button(acciones, text="Exportar resultado a CSV", command=lambda: app.ejecutar(self.exportar)).pack(side="left", padx=8)
-        self.notas = tk.StringVar(value="Seleccione un reporte y pulse Generar. La exportación conserva los filtros del resultado generado.")
-        ttk.Label(self, textvariable=self.notas, wraplength=1100).pack(anchor="w", pady=5)
+        self.boton_exportar = ttk.Button(acciones, text="Exportar resultado a CSV", command=lambda: app.ejecutar(self.exportar))
+        self.boton_exportar.state(["disabled"])
+        self.boton_exportar.pack(side="left", padx=8)
+        self.notas = tk.StringVar()
+        ttk.Label(self, textvariable=self.notas, style="Ayuda.TLabel", wraplength=910).pack(anchor="w", pady=5)
         self.secciones = ttk.Notebook(self)
         self.secciones.pack(fill="both", expand=True)
         app.refrescadores.append(self.formulario.actualizar)
@@ -192,6 +208,8 @@ class VistaReportes(ttk.Frame):
         for identificador in self.secciones.tabs():
             self.secciones.nametowidget(identificador).destroy()
         self.tablas.clear()
+        grafico = GraficoReporte(self.secciones, reporte)
+        self.secciones.add(grafico, text="Gráfico")
         for seccion in reporte["secciones"]:
             panel = ttk.Frame(self.secciones)
             self.secciones.add(panel, text=seccion["nombre"])
@@ -201,6 +219,7 @@ class VistaReportes(ttk.Frame):
             tabla.cargar(seccion["filas"])
             self.tablas.append(tabla)
         self.resultado = reporte
+        self.boton_exportar.state(["!disabled"])
         self.notas.set(reporte["notas"])
         return f"{reporte['titulo']} generado. Cambiar filtros requiere volver a generar."
 
