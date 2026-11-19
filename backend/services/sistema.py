@@ -273,6 +273,11 @@ class Sistema:
         with self.db.conectar() as cx:
             return ConsultasDAO(cx).contenido_bulto(identificador)
 
+    def cantidad_vendible(self, local_id, producto_id):
+        """Consulta las unidades vendibles actuales antes de cargar un renglón."""
+        with self.db.conectar() as cx:
+            return LoteDAO(cx).vendible(local_id, producto_id, ahora()[:10])
+
     def registrar_venta(self, local_id, detalles, cobros, numero_comprobante=None):
         """Registra una venta en un local con sus detalles, cobros, stock, caja y comprobante interno.
 

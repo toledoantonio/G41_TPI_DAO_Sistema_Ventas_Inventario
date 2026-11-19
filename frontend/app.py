@@ -230,11 +230,13 @@ class EditorCatalogo(ttk.Frame):
 
 
 class Renglones(ttk.LabelFrame):
-    def __init__(self, padre, app, compra=False, al_cambiar=None):
+    def __init__(self, padre, app, compra=False, al_cambiar=None, opciones_productos=None, validar_cantidad=None):
         super().__init__(padre, text="Productos de la operación", padding=8)
         self.items, self.compra, self.app, self.al_cambiar = [], compra, app, al_cambiar
+        self.validar_cantidad = validar_cantidad
+        origen_productos = (lambda: opciones_productos(self.items)) if opciones_productos else app.opciones("productos")
         campos = [
-            ("producto", "Producto", app.opciones("productos")),
+            ("producto", "Producto", origen_productos),
             ("cantidad", "Cantidad (unidades)", None),
         ]
         if compra:
@@ -251,6 +253,8 @@ class Renglones(ttk.LabelFrame):
         self.boton_agregar.pack(side="left")
         self.boton_agregar.state(["disabled"])
         self.formulario.variables["cantidad"].trace_add("write", self.actualizar_boton_agregar)
+        if validar_cantidad:
+            self.formulario.variables["producto"].trace_add("write", self.actualizar_boton_agregar)
         ttk.Button(botones, text="Quitar selección", command=lambda: app.ejecutar(self.quitar)).pack(
             side="left", padx=8
         )
@@ -264,12 +268,16 @@ class Renglones(ttk.LabelFrame):
 
     def actualizar_boton_agregar(self, *_):
         cantidad = self.formulario.variables["cantidad"].get().strip()
-        self.boton_agregar.state(["!disabled" if cantidad else "disabled"])
+        producto = self.formulario.variables["producto"].get()
+        habilitado = cantidad and (producto or not self.validar_cantidad)
+        self.boton_agregar.state(["!disabled" if habilitado else "disabled"])
 
     def agregar(self):
         producto_id = self.formulario.obtener("producto")
         try:
             cantidad = entero(self.formulario.obtener("cantidad"))
+            if self.validar_cantidad:
+                self.validar_cantidad(producto_id, cantidad)
         except ErrorDominio:
             self.formulario.marcar_error("cantidad")
             raise
@@ -277,6 +285,8 @@ class Renglones(ttk.LabelFrame):
         if self.compra:
             costo = importe(centavos(costo))
         etiqueta = self.formulario.variables["producto"].get()
+        if self.validar_cantidad:
+            etiqueta = etiqueta.split(" · ", 2)[-1]
         self.items.append(
             {
                 "id": len(self.items),
@@ -966,14 +976,32 @@ class Aplicacion:
             ],
         )
         self.minimo_form.pack(fill="x")
-        ttk.Button(panel, text="Guardar mínimo", style="Principal.TButton", command=lambda: self.ejecutar(self.guardar_minimo)).pack(
-            anchor="w", pady=8
-        )
+        acciones = ttk.Frame(panel)
+        acciones.pack(fill="x", pady=8)
+        ttk.Button(acciones, text="Guardar mínimo", style="Principal.TButton",
+                   command=lambda: self.ejecutar(self.guardar_minimo)).pack(side="left")
+        ttk.Button(acciones, text="Editar mínimo de la fila", command=lambda: self.ejecutar(self.editar_minimo)).pack(
+            side="left", padx=8)
+
+        filtros = ttk.Frame(panel)
+        filtros.pack(fill="x", pady=(4, 8))
+        ttk.Label(filtros, text="Buscar producto").pack(side="left")
+        self.busqueda_inventario = tk.StringVar()
+        ttk.Entry(filtros, textvariable=self.busqueda_inventario, width=28).pack(side="left", padx=8)
+        self.ubicaciones_inventario = {}
+        self.filtro_ubicaciones = ttk.Menubutton(filtros, text="Todas las ubicaciones", direction="below")
+        self.menu_ubicaciones = tk.Menu(self.filtro_ubicaciones, tearoff=False)
+        self.filtro_ubicaciones.configure(menu=self.menu_ubicaciones)
+        self.filtro_ubicaciones.pack(side="left", padx=(4, 8))
+        ttk.Button(filtros, text="Limpiar filtros", command=self.limpiar_filtros_inventario).pack(side="left")
+        self.resultados_inventario = ttk.Label(filtros, style="Ayuda.TLabel")
+        self.resultados_inventario.pack(side="right")
         self.inventario = Tabla(
             panel,
             [
                 ("ubicacion", "Ubicación"),
-                ("codigo", "Producto"),
+                ("codigo", "Código"),
+                ("descripcion", "Producto"),
                 ("disponible", "Disp. registrado"),
                 ("vendible", "Vendible"),
                 ("vencido", "Vencido"),
@@ -992,16 +1020,65 @@ class Aplicacion:
             text="Disponible es el saldo físico registrado; Vendible excluye lotes vencidos. Faltante usa Vendible. El costo promedio corresponde al saldo Disponible registrado; no se destruye stock por vencer.",
             wraplength=1000,
         ).pack(anchor="w", pady=10)
-        self.refrescadores.extend(
-            [self.minimo_form.actualizar, lambda: self.inventario.cargar(self.sistema.listar("inventario"))]
-        )
+        self.filas_inventario = []
+        self.busqueda_inventario.trace_add("write", self.filtrar_inventario)
+        self.refrescadores.extend([self.minimo_form.actualizar, self.refrescar_inventario])
+
+    def refrescar_inventario(self):
+        self.filas_inventario = self.sistema.listar("inventario")
+        ubicaciones = self.opciones("ubicaciones")()
+        self.menu_ubicaciones.delete(0, "end")
+        self.menu_ubicaciones.add_command(label="Todas las ubicaciones",
+                                         command=lambda: self.limpiar_filtros_inventario(solo_ubicaciones=True))
+        self.menu_ubicaciones.add_separator()
+        anteriores = self.ubicaciones_inventario
+        self.ubicaciones_inventario = {}
+        for identificador, nombre in ubicaciones:
+            variable = anteriores.get(identificador)
+            if variable is None:
+                variable = tk.BooleanVar(value=False)
+            self.ubicaciones_inventario[identificador] = variable
+            self.menu_ubicaciones.add_checkbutton(label=nombre, variable=variable, command=self.filtrar_inventario)
+        self.filtrar_inventario()
+
+    def filtrar_inventario(self, *_):
+        seleccionadas = {id_ for id_, variable in self.ubicaciones_inventario.items() if variable.get()}
+        palabras = self.busqueda_inventario.get().casefold().split()
+        filas = []
+        for fila in self.filas_inventario:
+            ubicacion, producto = fila["ubicacion_id"], fila["producto_id"]
+            if seleccionadas and ubicacion not in seleccionadas:
+                continue
+            etiqueta = f"{fila['codigo']} {fila['descripcion']}".casefold()
+            if all(palabra in etiqueta for palabra in palabras):
+                filas.append(dict(fila, id=(ubicacion, producto)))
+        titulo = f"Ubicaciones ({len(seleccionadas)})" if seleccionadas else "Todas las ubicaciones"
+        self.filtro_ubicaciones.configure(text=titulo)
+        self.resultados_inventario.configure(text=f"Filas: {len(filas)} de {len(self.filas_inventario)}")
+        self.inventario.cargar(filas)
+
+    def limpiar_filtros_inventario(self, solo_ubicaciones=False):
+        for variable in self.ubicaciones_inventario.values():
+            variable.set(False)
+        if solo_ubicaciones:
+            self.filtrar_inventario()
+        else:
+            self.busqueda_inventario.set("")
+
+    def editar_minimo(self):
+        fila = self.inventario.seleccionada()
+        self.minimo_form.completar({"ubicacion": fila["ubicacion_id"], "producto": fila["producto_id"], "minimo": fila["minimo"]})
+        campo = self.minimo_form.widgets["minimo"]
+        campo.focus_set()
+        campo.selection_range(0, "end")
+        return f"Editando mínimo de {fila['codigo']} en {fila['ubicacion']}."
 
     def guardar_minimo(self):
         f = self.minimo_form
         self.sistema.configurar_minimo(
             f.obtener("ubicacion"), f.obtener("producto"), f.obtener("minimo")
         )
-        return "Mínimo guardado. El faltante se calcula sobre la cantidad disponible."
+        return "Mínimo guardado. El faltante se calcula sobre el stock vendible."
 
     def crear_ventas(self):
         panel = self.panel("6. Ventas y caja")
@@ -1017,7 +1094,7 @@ class Aplicacion:
         nueva.rowconfigure(2, weight=1)
         ttk.Label(
             nueva,
-            text="Elegí el local, agregá los productos y completá el cobro. Podés usar Saldar resto para cubrir el importe pendiente.",
+            text="Elegí el local para ver sus productos vendibles. Usá Saldar resto para cubrir el importe pendiente.",
             style="Ayuda.TLabel", wraplength=910,
         ).grid(row=0, column=0, columnspan=2, sticky="w")
         self.venta_form = Formulario(
@@ -1028,12 +1105,20 @@ class Aplicacion:
             ],
         )
         self.venta_form.grid(row=1, column=0, columnspan=2, sticky="ew")
-        self.venta_items = Renglones(nueva, self, al_cambiar=lambda: self.venta_cobros.actualizar_resumen())
+        self.refrescadores.append(self.venta_form.actualizar)
+        self.venta_items = Renglones(
+            nueva, self, al_cambiar=lambda: self.venta_cobros.actualizar_resumen(),
+            opciones_productos=self.opciones_productos_venta, validar_cantidad=self.validar_cantidad_venta,
+        )
+        self.venta_items.configure(text="Productos del local")
         self.venta_items.grid(row=2, column=0, sticky="nsew", padx=(0, 6), pady=4)
+        self.ayuda_stock_venta = ttk.Label(nueva, style="Ayuda.TLabel", wraplength=920)
+        self.ayuda_stock_venta.grid(row=3, column=0, columnspan=2, sticky="w")
+        self.venta_form.widgets["local"].bind("<<ComboboxSelected>>", self.cambiar_local_venta)
         self.venta_cobros = RenglonesCobro(nueva, self, self.venta_items)
         self.venta_cobros.grid(row=2, column=1, sticky="nsew", padx=(6, 0), pady=4)
         acciones_nueva = ttk.Frame(nueva)
-        acciones_nueva.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        acciones_nueva.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         self.boton_confirmar_venta = ttk.Button(
             acciones_nueva,
             text="Confirmar venta y emitir comprobante",
@@ -1076,11 +1161,53 @@ class Aplicacion:
         self.ventas.pack(fill="both", expand=True)
         self.refrescadores.extend(
             [
-                self.venta_form.actualizar,
+                self.actualizar_controles_venta,
                 self.venta_cobros.actualizar_resumen,
                 lambda: self.ventas.cargar(self.sistema.listar("ventas")),
             ]
         )
+
+    def opciones_productos_venta(self, items):
+        if not self.venta_form.variables["local"].get():
+            return []
+        local_id = self.venta_form.obtener("local")
+        agregadas = {}
+        for item in items:
+            producto_id = item["producto_id"]
+            agregadas[producto_id] = agregadas.get(producto_id, 0) + item["cantidad"]
+        opciones = []
+        for fila in self.filas_inventario:
+            producto_id = fila["producto_id"]
+            disponible = fila["vendible"] - agregadas.get(producto_id, 0)
+            if fila["ubicacion_id"] == local_id and disponible > 0:
+                opciones.append((producto_id, f"{disponible} uds. · {fila['codigo']} {fila['descripcion']}"))
+        return opciones
+
+    def validar_cantidad_venta(self, producto_id, cantidad):
+        local_id = self.venta_form.obtener("local")
+        agregada = sum(unidades for id_, unidades in self.venta_items.detalles() if id_ == producto_id)
+        restante = max(0, self.sistema.cantidad_vendible(local_id, producto_id) - agregada)
+        if cantidad > restante:
+            unidad = "unidad" if restante == 1 else "unidades"
+            raise ErrorDominio(f"Podés agregar hasta {restante} {unidad} de ese producto en este local.")
+
+    def cambiar_local_venta(self, _evento):
+        self.venta_items.formulario.limpiar()
+        self.venta_items.formulario.actualizar()
+        self.actualizar_controles_venta()
+
+    def actualizar_controles_venta(self):
+        con_productos = bool(self.venta_items.items)
+        self.venta_form.widgets["local"].configure(state="disabled" if con_productos else "readonly")
+        tiene_opciones = bool(self.venta_items.formulario.variables["producto"].get())
+        mensaje = "El selector indica cuántas unidades todavía podés agregar de cada producto."
+        if not tiene_opciones:
+            mensaje = "Este local no tiene más unidades vendibles para agregar."
+        if not self.venta_form.variables["local"].get():
+            mensaje = "Registrá un local para iniciar una venta."
+        if con_productos:
+            mensaje += " Para cambiar de local, quitá los productos de la venta."
+        self.ayuda_stock_venta.configure(text=mensaje)
 
     def confirmar_venta(self):
         local_id = self.venta_form.obtener("local")

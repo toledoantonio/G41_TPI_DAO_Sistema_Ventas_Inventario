@@ -27,7 +27,9 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
   En **Reposición**, seleccioná la orden y abrí **Preparar bulto**. El diálogo muestra los productos pendientes y permite ingresar las cantidades del bulto por fila o cargar todo lo pendiente de una vez.
 - Despacho, recepción, verificación o rechazo, con historial inmutable, transferencia de costo promedio al local y patrón **State**.
 - **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
+  En **Nueva venta**, el selector muestra los productos vendibles del local y cuántas unidades pueden agregarse. La cantidad se valida al agregar cada renglón y el stock se comprueba nuevamente al confirmar.
 - Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.
+  En **Inventario**, se puede buscar por código o descripción y combinar la búsqueda con una o varias ubicaciones. **Editar mínimo de la fila** carga el producto y la ubicación seleccionados en el formulario.
 - **Devoluciones parciales vinculadas a ventas:** cantidades acumuladas, referencia única, reintegro al precio original y reingreso vendible o bloqueado, con stock y caja en una transacción.
 - **Cuatro reportes no triviales** con agregaciones, filtros y exportación CSV: ventas/ingresos, ranking/margen, existencias/mínimos y rechazos por precinto.
 - **Órdenes de compra sugeridas por faltantes** de locales y CD, con cobertura de pedidos/envíos/compras pendientes, recepción completa vinculada a una compra real y cancelación sin borrar documentos.

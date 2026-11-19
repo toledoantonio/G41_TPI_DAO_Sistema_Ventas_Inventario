@@ -131,6 +131,7 @@ class TestInterfaz:
         assert self.app.bultos.seleccionada()["precinto"] == "PRECINTO-DEMO-01"
 
     def test_cobro_excesivo_conserva_lo_ya_ingresado(self):
+        self.habilitar_stock_demo()
         renglones = self.app.venta_items
         renglones.formulario.variables["cantidad"].set("1")
         renglones.boton_agregar.invoke()
@@ -149,6 +150,82 @@ class TestInterfaz:
         assert len(renglones.items) == 1
         cobros.boton_saldar.invoke()
         assert cobros.total_cobrado_centavos() == 10000
+
+    def habilitar_stock_demo(self):
+        local = next(u["id"] for u in self.s.listar("ubicaciones") if u["tipo"] == "LOCAL")
+        bulto = self.s.listar("bultos")[0]["id"]
+        self.s.despachar(bulto)
+        self.s.recibir(bulto, local)
+        self.s.verificar(bulto, local, "PRECINTO-DEMO-01")
+        self.app.actualizar()
+        return local
+
+    def test_venta_filtra_por_local_y_valida_el_total_antes_de_cobrar(self):
+        renglones = self.app.venta_items
+        formulario = renglones.formulario
+        assert not formulario.widgets["producto"]["values"]
+        local = self.habilitar_stock_demo()
+        otro_local = self.s.guardar_ubicacion("L02", "Local Sur", "Sucursal Sur", "LOCAL")
+        self.app.actualizar()
+
+        selector_local = self.app.venta_form.widgets["local"]
+        selector_local.current(1)
+        selector_local.event_generate("<<ComboboxSelected>>", when="tail")
+        self.raiz.update()
+        assert self.app.venta_form.obtener("local") == otro_local
+        assert not formulario.widgets["producto"]["values"]
+        selector_local.current(0)
+        selector_local.event_generate("<<ComboboxSelected>>", when="tail")
+        self.raiz.update()
+        assert self.app.venta_form.obtener("local") == local
+        assert "10 uds." in formulario.variables["producto"].get()
+
+        formulario.variables["cantidad"].set("7")
+        renglones.boton_agregar.invoke()
+        assert selector_local.instate(["disabled"])
+        assert "3 uds." in formulario.variables["producto"].get()
+        formulario.variables["cantidad"].set("4")
+        with patch("frontend.app.messagebox.showerror") as error:
+            renglones.boton_agregar.invoke()
+            assert "hasta 3 unidades" in error.call_args.args[1]
+        assert len(renglones.items) == 1
+        assert self.app.venta_cobros.total_venta_centavos() == 70000
+        self.s.registrar_venta(local, [(formulario.obtener("producto"), 2)], [("EFECTIVO", "200")])
+        formulario.variables["cantidad"].set("3")
+        with patch("frontend.app.messagebox.showerror") as error:
+            renglones.boton_agregar.invoke()
+            assert "hasta 1 unidad" in error.call_args.args[1]
+        formulario.variables["cantidad"].set("1")
+        renglones.boton_agregar.invoke()
+        assert not formulario.widgets["producto"]["values"]
+
+    def test_inventario_combina_busqueda_y_ubicaciones_y_edita_minimo(self):
+        local = next(u["id"] for u in self.s.listar("ubicaciones") if u["tipo"] == "LOCAL")
+        otro_local = self.s.guardar_ubicacion("L02", "Local Sur", "Sucursal Sur", "LOCAL")
+        categoria = self.s.listar("categorias")[0]["id"]
+        harina = self.s.guardar_producto("HA01", "Harina integral", categoria, "50")
+        self.app.actualizar()
+
+        self.app.busqueda_inventario.set("harina HA01")
+        self.app.menu_ubicaciones.invoke(3)
+        self.app.menu_ubicaciones.invoke(4)
+        filas = self.app.inventario.filas
+        assert {fila["ubicacion_id"] for fila in filas.values()} == {local, otro_local}
+        assert {fila["producto_id"] for fila in filas.values()} == {harina}
+
+        self.app.inventario.arbol.selection_set("1")
+        assert self.app.ejecutar(self.app.editar_minimo)
+        formulario = self.app.minimo_form
+        assert formulario.obtener("ubicacion") == otro_local
+        assert formulario.obtener("producto") == harina
+        formulario.variables["minimo"].set("12")
+        assert self.app.ejecutar(self.app.guardar_minimo)
+        assert self.app.inventario.seleccionada()["minimo"] == 12
+        assert self.app.busqueda_inventario.get() == "harina HA01"
+        assert len(filas) == 2
+
+        self.app.limpiar_filtros_inventario()
+        assert len(filas) == 6
 
     def test_fechas_aceptan_digitos_y_marcan_fecha_imposible(self):
         formulario = self.app.reportes_vista.formulario
