@@ -24,6 +24,7 @@ Trabajo Práctico Integrador de **Desarrollo de Aplicaciones con Objetos**, Inge
 - Compras recibidas en el CD con varios productos, costos históricos y cálculo de **costo promedio ponderado**.
 - Órdenes de reposición por local, con productos consolidados y atención parcial.
 - Preparación de bultos con reserva de stock, captura de costo de transferencia, un remito por bulto y precinto único.
+  En **Reposición**, seleccioná la orden y abrí **Preparar bulto**. El diálogo muestra los productos pendientes y permite ingresar las cantidades del bulto por fila o cargar todo lo pendiente de una vez.
 - Despacho, recepción, verificación o rechazo, con historial inmutable, transferencia de costo promedio al local y patrón **State**.
 - **Ventas en locales** con uno o varios productos consolidados, validación contra stock disponible y verificado, conservación de precios y costos históricos, cobros simples o mixtos por medio de pago, movimientos de caja y emisión de comprobante interno.
 - Inventario por ubicación con Disponible, Reservado, Pendiente, Rechazado y Costo Promedio; persistencia SQLite 3 con gestor **Singleton** y operaciones atómicas.

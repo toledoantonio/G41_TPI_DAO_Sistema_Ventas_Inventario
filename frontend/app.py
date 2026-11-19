@@ -3,6 +3,7 @@
 import sqlite3
 import tkinter as tk
 from datetime import date
+from pathlib import Path
 from tkinter import font, messagebox, ttk
 
 from backend.models.entidades import centavos, entero, importe
@@ -317,6 +318,75 @@ class Renglones(ttk.LabelFrame):
             self.al_cambiar()
 
 
+class ContenidoBulto(ttk.LabelFrame):
+    def __init__(self, padre, pendientes):
+        super().__init__(padre, text="Productos pendientes de la orden", padding=8)
+        self.cantidades = []
+        fondo = ttk.Style(self).lookup("TFrame", "background")
+        lienzo = tk.Canvas(self, height=230, background=fondo, highlightthickness=0)
+        barra = ttk.Scrollbar(self, orient="vertical", command=lienzo.yview)
+        lienzo.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        lienzo.pack(side="left", fill="both", expand=True)
+        tabla = ttk.Frame(lienzo)
+        tabla.columnconfigure(1, weight=1)
+        panel = lienzo.create_window(0, 0, anchor="nw", window=tabla)
+        lienzo.bind("<Configure>", lambda evento: lienzo.itemconfigure(panel, width=evento.width))
+        tabla.bind("<Configure>", lambda _: lienzo.configure(scrollregion=lienzo.bbox(panel)))
+        self.winfo_toplevel().bind(
+            "<MouseWheel>", lambda evento: lienzo.yview_scroll(-int(evento.delta / 120), "units")
+        )
+
+        for columna, titulo in enumerate(("Código", "Producto", "Por asignar", "En este bulto")):
+            ttk.Label(tabla, text=titulo, font="TkHeadingFont").grid(
+                row=0, column=columna, sticky="w", padx=8, pady=(0, 5)
+            )
+        for fila, producto in enumerate(pendientes, start=1):
+            for columna, (clave, ancho) in enumerate((("codigo", 105), ("descripcion", 245), ("pendiente", 0))):
+                ttk.Label(tabla, text=producto[clave], wraplength=ancho).grid(
+                    row=fila, column=columna, sticky="e" if clave == "pendiente" else "w", padx=8
+                )
+            cantidad = ttk.Entry(tabla, width=12, justify="right")
+            cantidad.grid(row=fila, column=3, sticky="ew", padx=8, pady=3)
+            cantidad.bind("<FocusIn>", lambda _, campo=cantidad: self.mostrar_cantidad(lienzo, tabla, campo))
+            self.cantidades.append((producto, cantidad))
+
+    @staticmethod
+    def mostrar_cantidad(lienzo, tabla, campo):
+        arriba = lienzo.canvasy(0)
+        abajo = arriba + lienzo.winfo_height()
+        inicio, fin = campo.winfo_y(), campo.winfo_y() + campo.winfo_height()
+        if inicio < arriba:
+            lienzo.yview_moveto(inicio / tabla.winfo_height())
+        elif fin > abajo:
+            lienzo.yview_moveto((fin - lienzo.winfo_height()) / tabla.winfo_height())
+
+    def cargar_pendientes(self):
+        for producto, campo in self.cantidades:
+            campo.delete(0, "end")
+            campo.insert(0, producto["pendiente"])
+
+    def detalles(self):
+        detalles = []
+        for producto, campo in self.cantidades:
+            valor = campo.get().strip()
+            if not valor:
+                continue
+            try:
+                cantidad = entero(valor, f"Cantidad de {producto['codigo']}", minimo=0)
+                if cantidad > producto["pendiente"]:
+                    raise ErrorDominio(f"{producto['codigo']}: quedan {producto['pendiente']} unidades por asignar.")
+            except ErrorDominio:
+                campo.focus_set()
+                campo.selection_range(0, "end")
+                raise
+            if cantidad:
+                detalles.append((producto["producto_id"], cantidad))
+        if not detalles:
+            raise ErrorDominio("Ingresá la cantidad de al menos un producto para preparar el bulto.")
+        return detalles
+
+
 class RenglonesCobro(ttk.LabelFrame):
     """Componente de interfaz para registrar uno o varios cobros por medio de pago."""
 
@@ -444,6 +514,8 @@ class Aplicacion:
         self.raiz, self.sistema = raiz, sistema
         self.refrescadores = []
         raiz.title("G41 · Ventas e inventario")
+        icono = Path(__file__).with_name("icono.png")
+        raiz.iconphoto(True, tk.PhotoImage(master=raiz, file=str(icono)))
         raiz.geometry("1220x820")
         raiz.minsize(1020, 720)
         aplicar_estilos(raiz)
@@ -702,38 +774,38 @@ class Aplicacion:
 
     def dialogo_preparar(self):
         orden = self.ordenes.seleccionada()
+        pendientes = [producto for producto in self.sistema.detalle_orden(orden["id"]) if producto["pendiente"] > 0]
+        if not pendientes:
+            raise ErrorDominio("La orden seleccionada ya fue asignada por completo.")
         ventana = tk.Toplevel(self.raiz)
         ventana.title(f"Preparar bulto · Orden {orden['id']} → {orden['local']}")
-        ventana.geometry("850x500")
+        ventana.geometry("850x460")
+        ventana.minsize(700, 350)
         ventana.transient(self.raiz)
         ventana.grab_set()
         contenedor = ttk.Frame(ventana, padding=12)
         contenedor.pack(fill="both", expand=True)
-        ttk.Label(
-            contenedor,
-            text="Un bulto por remito. Puede asignar parte de lo pendiente y preparar otro bulto después.",
-        ).pack(anchor="w")
         formulario = Formulario(contenedor, [("remito", "Número único de remito", None)])
         formulario.pack(fill="x")
-        renglones = Renglones(contenedor, self)
-        renglones.pack(fill="both", expand=True)
+        ttk.Label(contenedor, text="Dejá vacíos o en 0 los productos que no van en este bulto.").pack(anchor="w", pady=(5, 8))
+        contenido = ContenidoBulto(contenedor, pendientes)
 
         def confirmar():
+            detalles = contenido.detalles()
             identificador = self.sistema.preparar_bulto(
-                orden["id"], formulario.obtener("remito"), renglones.detalles()
+                orden["id"], formulario.obtener("remito"), detalles
             )
-            self.refrescadores.remove(renglones.formulario.actualizar)
             ventana.destroy()
             return f"Bulto {identificador} preparado: mercadería reservada en el CD."
 
-        def cerrar():
-            self.refrescadores.remove(renglones.formulario.actualizar)
-            ventana.destroy()
-
-        ventana.protocol("WM_DELETE_WINDOW", cerrar)
-        ttk.Button(contenedor, text="Preparar y reservar", style="Principal.TButton", command=lambda: self.ejecutar(confirmar)).pack(
-            anchor="w", pady=8
-        )
+        acciones = ttk.Frame(contenedor)
+        acciones.pack(side="bottom", fill="x", pady=(8, 0))
+        ttk.Button(acciones, text="Preparar y reservar", style="Principal.TButton",
+                   command=lambda: self.ejecutar(confirmar)).pack(side="left")
+        ttk.Button(acciones, text="Cargar todo lo pendiente", command=contenido.cargar_pendientes).pack(side="left", padx=8)
+        ttk.Button(acciones, text="Cancelar", command=ventana.destroy).pack(side="right")
+        contenido.pack(fill="both", expand=True)
+        formulario.widgets["remito"].focus_set()
 
     def crear_logistica(self):
         panel = self.panel("4. Logística")
